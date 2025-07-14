@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 "use server";
 
@@ -85,9 +86,16 @@ export async function getUniversities(): Promise<University[]> {
     });
 
     return universities;
-  } catch (error) {
-    console.error('Error fetching universities:', error);
-    throw new Error('Failed to fetch universities');
+  } catch (error: any) {
+    console.error("🔴 Error fetching universities:");
+    console.error("🧩 Message:", error.message);
+    console.error("📄 Stack:", error.stack);
+
+    if (error instanceof Error) {
+      console.error("🛠 Prisma error name:", error.name);
+    }
+
+    throw new Error("Failed to fetch universities");
   }
 }
 
