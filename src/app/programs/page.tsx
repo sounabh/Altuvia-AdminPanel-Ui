@@ -1,98 +1,95 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unused-vars */
+// app/program-management/page.tsx
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Filter, Building, GraduationCap, FileText, Award, ExternalLink, Users, DollarSign } from 'lucide-react';
+import { Search, Plus, Filter, Building, GraduationCap, FileText, Award, ExternalLink, Users } from 'lucide-react';
+import { toast } from 'sonner'; // Changed from useToast to sonner
 import DepartmentList from './components/DepartmentList';
 import ProgramList from './components/ProgramList';
 import ProgramDetail from './components/Programdetail';
 import DepartmentForm from './components/DepartmentForm'; 
 import ProgramForm from './components/ProgramForm';
 import SearchFilters from './components/SearchFilters';
+import {
+  createDepartment,
+  updateDepartment,
+  deleteDepartment,
+  getDepartmentsByUniversity,
+  createProgram,
+  updateProgram,
+  deleteProgram,
+  searchPrograms,
+  getProgramById,
+  uploadSyllabus,
+  deleteSyllabus,
+  addProgramRanking,
+  updateProgramRanking,
+  deleteProgramRanking,
+  addExternalLink,
+  updateExternalLink,
+  deleteExternalLink,
+  getUniversities,
+} from './actions/action';
+import type {
+  DepartmentWithPrograms,
+  ProgramSearchResult,
+  ProgramWithFullRelations,
+  CreateDepartmentInput,
+  UpdateDepartmentInput,
+  CreateProgramInput,
+  UpdateProgramInput,
+  CreateSyllabusInput,
+  CreateProgramRankingInput,
+  UpdateProgramRankingInput,
+  CreateExternalLinkInput,
+  UpdateExternalLinkInput,
+  SearchProgramsFilters
+} from './types/programs';
 
-const UniversityManagement = () => {
-  const [activeTab, setActiveTab] = useState('departments');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showForm, setShowForm] = useState(false);
-  const [selectedItem, setSelectedItem] = useState(null);
-  const [filters, setFilters] = useState({
+const ProgramManagement = () => {
+  const [activeTab, setActiveTab] = useState<'departments' | 'programs'>('departments');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [showForm, setShowForm] = useState<boolean>(false);
+  const [selectedItem, setSelectedItem] = useState<DepartmentWithPrograms | ProgramWithFullRelations | null>(null);
+  const [filters, setFilters] = useState<SearchProgramsFilters>({
     universityId: '',
     departmentId: '',
     degreeType: '',
     isActive: true
   });
 
-  const [departments, setDepartments] = useState([]);
-  const [programs, setPrograms] = useState([]);
-  const [universities, setUniversities] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [departments, setDepartments] = useState<DepartmentWithPrograms[]>([]);
+  const [programs, setPrograms] = useState<ProgramSearchResult[]>([]);
+  const [universities, setUniversities] = useState<{ id: string; name: string; slug: string }[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [isFetching, setIsFetching] = useState<boolean>(true);
 
-  // Mock data - replace with actual API calls
-  const mockUniversities = [
-    { id: '1', name: 'Harvard University', slug: 'harvard' },
-    { id: '2', name: 'Stanford University', slug: 'stanford' },
-    { id: '3', name: 'MIT', slug: 'mit' }
-  ];
-
-  const mockDepartments = [
-    {
-      id: '1',
-      universityId: '1',
-      name: 'Computer Science',
-      slug: 'computer-science',
-      programs: [
-        { id: '1', programName: 'Bachelor of Computer Science', degreeType: 'Bachelor', isActive: true },
-        { id: '2', programName: 'Master of Computer Science', degreeType: 'Master', isActive: true }
-      ],
-      _count: { programs: 2 }
-    },
-    {
-      id: '2',
-      universityId: '1',
-      name: 'Engineering',
-      slug: 'engineering',
-      programs: [
-        { id: '3', programName: 'Bachelor of Engineering', degreeType: 'Bachelor', isActive: true }
-      ],
-      _count: { programs: 1 }
-    }
-  ];
-
-  const mockPrograms = [
-    {
-      id: '1',
-      programName: 'Bachelor of Computer Science',
-      programSlug: 'bachelor-computer-science',
-      degreeType: 'Bachelor',
-      programLength: 4,
-      specializations: 'AI, Machine Learning, Software Engineering',
-      programDescription: 'Comprehensive computer science program covering all aspects of computing.',
-      curriculumOverview: 'Core CS subjects, programming languages, algorithms, data structures.',
-      admissionRequirements: 'High school diploma, SAT scores, recommendation letters.',
-      averageEntranceScore: 85.5,
-      programTuitionFees: 50000,
-      programAdditionalFees: 5000,
-      isActive: true,
-      department: { name: 'Computer Science' },
-      university: { name: 'Harvard University' },
-      rankings: [
-        { year: 2024, rank: 1, source: 'QS World Rankings' }
-      ],
-      externalLinks: [
-        { id: '1', title: 'Official Program Page', url: 'https://example.com' }
-      ],
-      _count: {
-        admissions: 150,
-        scholarships: 5,
-        tuitionBreakdowns: 3
-      }
-    }
-  ];
-
+  // Fetch initial data
   useEffect(() => {
-    setUniversities(mockUniversities);
-    setDepartments(mockDepartments);
-    setPrograms(mockPrograms);
+    const fetchData = async () => {
+      try {
+        setIsFetching(true);
+        const [univs, depts, progs] = await Promise.all([
+          getUniversities(),
+          getDepartmentsByUniversity(),
+          searchPrograms('', {})
+        ]);
+        
+        setUniversities(univs);
+        setDepartments(depts);
+        setPrograms(progs);
+      } catch (error) {
+        toast.error("Failed to fetch data", {
+          description: "Please try again later"
+        });
+      } finally {
+        setIsFetching(false);
+      }
+    };
+    
+    fetchData();
   }, []);
 
   const handleCreateNew = () => {
@@ -100,7 +97,7 @@ const UniversityManagement = () => {
     setShowForm(true);
   };
 
-  const handleEdit = (item) => {
+  const handleEdit = (item: DepartmentWithPrograms | ProgramWithFullRelations) => {
     setSelectedItem(item);
     setShowForm(true);
   };
@@ -110,26 +107,208 @@ const UniversityManagement = () => {
     setSelectedItem(null);
   };
 
-  const handleFormSubmit = async (data) => {
+  const handleFormSubmit = async (data: CreateDepartmentInput | CreateProgramInput) => {
     setLoading(true);
-    // Handle form submission based on active tab
     try {
-      // API call would go here
-      console.log('Form submitted:', data);
+      if (activeTab === 'departments') {
+        const input = data as CreateDepartmentInput;
+        const result = selectedItem?.id
+          ? await updateDepartment(selectedItem.id, input as UpdateDepartmentInput)
+          : await createDepartment(input);
+        
+        if (result.success) {
+          const updatedDepts = await getDepartmentsByUniversity();
+          setDepartments(updatedDepts);
+          toast.success(selectedItem?.id 
+            ? "Department updated successfully" 
+            : "Department created successfully"
+          );
+        } else {
+          throw new Error((result as any).error || "Operation failed");
+        }
+      } else {
+        const input = data as CreateProgramInput;
+        const result = selectedItem?.id
+          ? await updateProgram(selectedItem.id, input as UpdateProgramInput)
+          : await createProgram(input);
+        
+        if (result.success) {
+          const updatedProgs = await searchPrograms('', {});
+          setPrograms(updatedProgs);
+          toast.success(selectedItem?.id 
+            ? "Program updated successfully" 
+            : "Program created successfully"
+          );
+        } else {
+          throw new Error(result.error);
+        }
+      }
       setShowForm(false);
       setSelectedItem(null);
-    } catch (error) {
-      console.error('Error submitting form:', error);
+    } catch (error: any) {
+      toast.error("Operation failed", {
+        description: error.message || "Please try again"
+      });
     } finally {
       setLoading(false);
     }
   };
 
-  const handleViewDetail = (item) => {
-    setSelectedItem(item);
+  const handleDelete = async (id: string) => {
+    try {
+      setLoading(true);
+      const result = activeTab === 'departments'
+        ? await deleteDepartment(id)
+        : await deleteProgram(id);
+      
+      if (result.success) {
+        if (activeTab === 'departments') {
+          const updatedDepts = await getDepartmentsByUniversity();
+          setDepartments(updatedDepts);
+        } else {
+          const updatedProgs = await searchPrograms('', {});
+          setPrograms(updatedProgs);
+        }
+        toast.success(`${activeTab === 'departments' ? 'Department' : 'Program'} deleted successfully`);
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (error: any) {
+      toast.error("Deletion failed", {
+        description: error.message || "Please try again"
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const filteredData = () => {
+  const handleViewDetail = async (item: DepartmentWithPrograms | ProgramSearchResult) => {
+    if ('programName' in item) {
+      try {
+        setLoading(true);
+        const program = await getProgramById(item.id);
+        if (program) {
+          setSelectedItem(program);
+        }
+      } catch (error) {
+        toast.error("Failed to fetch program details");
+      } finally {
+        setLoading(false);
+      }
+    } else {
+      setSelectedItem(item);
+    }
+  };
+
+  const handleSyllabusUpload = async (data: CreateSyllabusInput) => {
+    try {
+      setLoading(true);
+      const result = await uploadSyllabus(data);
+      if (result.success && selectedItem && 'programName' in selectedItem) {
+        const updatedProgram = await getProgramById(selectedItem.id);
+        if (updatedProgram) setSelectedItem(updatedProgram);
+        toast.success("Syllabus uploaded successfully");
+      } else {
+        throw new Error((result as any).error || "Syllabus upload failed");
+      }
+    } catch (error: any) {
+      toast.error("Syllabus upload failed", {
+        description: error.message || "Please try again"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSyllabusDelete = async (programId: string) => {
+    try {
+      setLoading(true);
+      const result = await deleteSyllabus(programId);
+      if (result.success && selectedItem && 'programName' in selectedItem) {
+        const updatedProgram = await getProgramById(selectedItem.id);
+        if (updatedProgram) setSelectedItem(updatedProgram);
+        toast.success("Syllabus deleted successfully");
+      } else {
+       throw new Error((result as any).error || "Syllabus deletion failed");
+      }
+    } catch (error: any) {
+      toast.error("Syllabus deletion failed", {
+        description: error.message || "Please try again"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRankingAction = async (
+    action: 'create' | 'update' | 'delete',
+    data: CreateProgramRankingInput | UpdateProgramRankingInput,
+    id?: string
+  ) => {
+    try {
+      setLoading(true);
+      let result;
+      
+      if (action === 'create') {
+        result = await addProgramRanking(data as CreateProgramRankingInput);
+      } else if (action === 'update' && id) {
+        result = await updateProgramRanking(id, data as UpdateProgramRankingInput);
+      } else if (action === 'delete' && id) {
+        result = await deleteProgramRanking(id);
+      }
+      
+      if (result?.success && selectedItem && 'programName' in selectedItem) {
+        const updatedProgram = await getProgramById(selectedItem.id);
+        if (updatedProgram) setSelectedItem(updatedProgram);
+        toast.success(`Ranking ${action}d successfully`);
+      } else if (!result?.success) {
+        throw new Error(result?.error);
+      }
+    } catch (error: any) {
+      toast.error(`Ranking ${action} failed`, {
+        description: error.message || "Please try again"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLinkAction = async (
+    action: 'create' | 'update' | 'delete',
+    data: CreateExternalLinkInput | UpdateExternalLinkInput,
+    id?: string
+  ) => {
+    try {
+      setLoading(true);
+      let result;
+      
+      if (action === 'create') {
+        result = await addExternalLink(data as CreateExternalLinkInput);
+      } else if (action === 'update' && id) {
+        result = await updateExternalLink(id, data as UpdateExternalLinkInput);
+      } else if (action === 'delete' && id) {
+        result = await deleteExternalLink(id);
+      }
+      
+      if (result?.success && selectedItem && 'programName' in selectedItem) {
+        const updatedProgram = await getProgramById(selectedItem.id);
+        if (updatedProgram) setSelectedItem(updatedProgram);
+        toast.success(`External link ${action}d successfully`);
+      } else if (!result?.success) {
+        throw new Error(result?.error);
+      }
+    } catch (error: any) {
+      toast.error(`External link ${action} failed`, {
+        description: error.message || "Please try again"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredData = (): (DepartmentWithPrograms | ProgramSearchResult)[] => {
+    if (isFetching) return [];
+    
     if (activeTab === 'departments') {
       return departments.filter(dept => 
         dept.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
@@ -160,12 +339,13 @@ const UniversityManagement = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">University Management</h1>
+              <h1 className="text-3xl font-bold text-gray-900">Program Management</h1>
               <p className="mt-1 text-sm text-gray-500">Manage departments, programs, and academic resources</p>
             </div>
             <button
               onClick={handleCreateNew}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 transition-colors"
+              disabled={loading}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 transition-colors disabled:opacity-50"
             >
               <Plus size={16} />
               Create New {activeTab === 'departments' ? 'Department' : 'Program'}
@@ -273,27 +453,37 @@ const UniversityManagement = () => {
         {/* Content Area */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
-            {activeTab === 'departments' ? (
+            {isFetching ? (
+              <div className="bg-white p-8 rounded-lg shadow-sm text-center">
+                <p>Loading data...</p>
+              </div>
+            ) : activeTab === 'departments' ? (
               <DepartmentList
-                departments={filteredData()}
+                departments={filteredData() as DepartmentWithPrograms[]}
                 onEdit={handleEdit}
+                onDelete={handleDelete}
                 onViewDetail={handleViewDetail}
               />
             ) : (
               <ProgramList
-                programs={filteredData()}
+                programs={filteredData() as ProgramSearchResult[]}
                 onEdit={handleEdit}
+                onDelete={handleDelete}
                 onViewDetail={handleViewDetail}
               />
             )}
           </div>
           
           <div className="lg:col-span-1">
-            {selectedItem && !showForm && (
+            {selectedItem && !showForm && 'programName' in selectedItem && (
               <ProgramDetail
-                program={selectedItem}
+                program={selectedItem as ProgramWithFullRelations}
                 onEdit={handleEdit}
                 onClose={() => setSelectedItem(null)}
+                onSyllabusUpload={handleSyllabusUpload}
+                onSyllabusDelete={handleSyllabusDelete}
+                onRankingAction={handleRankingAction}
+                onLinkAction={handleLinkAction}
               />
             )}
           </div>
@@ -306,7 +496,7 @@ const UniversityManagement = () => {
           <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
             {activeTab === 'departments' ? (
               <DepartmentForm
-                department={selectedItem}
+                department={selectedItem as DepartmentWithPrograms}
                 universities={universities}
                 onSubmit={handleFormSubmit}
                 onClose={handleFormClose}
@@ -314,7 +504,7 @@ const UniversityManagement = () => {
               />
             ) : (
               <ProgramForm
-                program={selectedItem}
+                program={selectedItem as ProgramWithFullRelations}
                 universities={universities}
                 departments={departments}
                 onSubmit={handleFormSubmit}
@@ -329,4 +519,4 @@ const UniversityManagement = () => {
   );
 };
 
-export default UniversityManagement;
+export default ProgramManagement;

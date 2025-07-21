@@ -1,12 +1,56 @@
 import React from 'react';
 import { Edit, Eye, Users, CheckCircle, XCircle, Calendar } from 'lucide-react';
 
-const EssayPromptList = ({ prompts, onEdit, onViewDetail }) => {
-  const getStatusColor = (isActive) => {
-    return isActive ? 'text-green-600 bg-green-100' : 'text-red-600 bg-red-100';
+// ================== INTERFACES ==================
+interface Admission {
+  name: string;
+}
+
+interface Program {
+  programName: string;
+}
+
+interface Intake {
+  name: string;
+}
+
+interface Count {
+  submissions?: number;
+}
+
+export interface EssayPrompt {
+  id: string;
+  promptTitle: string;
+  promptText: string;
+  wordLimit: number;
+  minWordCount: number;
+  isMandatory: boolean;
+  isActive: boolean;
+  createdAt: string | Date;
+  _count?: Count;
+  admission?: Admission;
+  program?: Program;
+  intake?: Intake;
+}
+
+interface EssayPromptListProps {
+  prompts: EssayPrompt[];
+  onEdit: (prompt: EssayPrompt) => void;
+  onViewDetail: (prompt: EssayPrompt) => void;
+}
+
+const EssayPromptList: React.FC<EssayPromptListProps> = ({ 
+  prompts, 
+  onEdit, 
+  onViewDetail 
+}) => {
+  const getStatusColor = (isActive: boolean) => {
+    return isActive 
+      ? 'text-green-600 bg-green-100' 
+      : 'text-red-600 bg-red-100';
   };
 
-  const getMandatoryBadge = (isMandatory) => {
+  const getMandatoryBadge = (isMandatory: boolean) => {
     return isMandatory ? (
       <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
         Mandatory

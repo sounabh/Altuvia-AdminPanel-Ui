@@ -1,49 +1,93 @@
-import React from 'react';
-import { Eye, Star, Calendar, User, FileText, CheckCircle, Clock, XCircle } from 'lucide-react';
+import React, { JSX } from 'react';
+import { 
+  Eye, 
+  Star, 
+  Calendar, 
+  User, 
+  FileText, 
+  CheckCircle, 
+  Clock, 
+  XCircle 
+} from 'lucide-react';
 
-const EssaySubmissionList = ({ submissions, onViewDetail }) => {
-  const getStatusColor = (status) => {
+// ================== INTERFACES ==================
+export type SubmissionStatus = 
+  | 'DRAFT' 
+  | 'SUBMITTED' 
+  | 'UNDER_REVIEW' 
+  | 'ACCEPTED' 
+  | 'REJECTED';
+
+export type ReviewStatus = 'PENDING' | 'REVIEWED';
+
+export interface User {
+  name: string;
+}
+
+export interface EssayPrompt {
+  promptTitle: string;
+  wordLimit: number;
+}
+
+export interface EssaySubmission {
+  id: string;
+  title?: string;
+  essayPrompt?: EssayPrompt;
+  status: SubmissionStatus;
+  user?: User;
+  submissionDate?: string;
+  lastEditedAt: string;
+  content: string;
+  wordCount: number;
+  internalRating?: number;
+  reviewStatus?: ReviewStatus;
+  reviewerComment?: string;
+}
+
+interface EssaySubmissionListProps {
+  submissions: EssaySubmission[];
+  onViewDetail: (submission: EssaySubmission) => void;
+}
+
+// ================== COMPONENT ==================
+const EssaySubmissionList = ({ 
+  submissions, 
+  onViewDetail 
+}: EssaySubmissionListProps) => {
+  
+  const getStatusColor = (status: SubmissionStatus): string => {
     switch (status) {
-      case 'DRAFT':
-        return 'text-gray-600 bg-gray-100';
-      case 'SUBMITTED':
-        return 'text-blue-600 bg-blue-100';
-      case 'UNDER_REVIEW':
-        return 'text-yellow-600 bg-yellow-100';
-      case 'ACCEPTED':
-        return 'text-green-600 bg-green-100';
-      case 'REJECTED':
-        return 'text-red-600 bg-red-100';
-      default:
-        return 'text-gray-600 bg-gray-100';
+      case 'DRAFT': return 'text-gray-600 bg-gray-100';
+      case 'SUBMITTED': return 'text-blue-600 bg-blue-100';
+      case 'UNDER_REVIEW': return 'text-yellow-600 bg-yellow-100';
+      case 'ACCEPTED': return 'text-green-600 bg-green-100';
+      case 'REJECTED': return 'text-red-600 bg-red-100';
+      default: return 'text-gray-600 bg-gray-100';
     }
   };
 
-  const getStatusIcon = (status) => {
+  const getStatusIcon = (status: SubmissionStatus): JSX.Element => {
     switch (status) {
-      case 'DRAFT':
-        return <FileText size={12} className="mr-1" />;
-      case 'SUBMITTED':
-        return <CheckCircle size={12} className="mr-1" />;
-      case 'UNDER_REVIEW':
-        return <Clock size={12} className="mr-1" />;
-      case 'ACCEPTED':
-        return <CheckCircle size={12} className="mr-1" />;
-      case 'REJECTED':
-        return <XCircle size={12} className="mr-1" />;
-      default:
-        return <FileText size={12} className="mr-1" />;
+      case 'DRAFT': return <FileText size={12} className="mr-1" />;
+      case 'SUBMITTED': 
+      case 'ACCEPTED': return <CheckCircle size={12} className="mr-1" />;
+      case 'UNDER_REVIEW': return <Clock size={12} className="mr-1" />;
+      case 'REJECTED': return <XCircle size={12} className="mr-1" />;
+      default: return <FileText size={12} className="mr-1" />;
     }
   };
 
-  const getWordCountColor = (wordCount, wordLimit) => {
+  const getWordCountColor = (
+    wordCount: number, 
+    wordLimit: number = 500
+  ): string => {
     const percentage = (wordCount / wordLimit) * 100;
     if (percentage < 50) return 'text-red-600';
     if (percentage < 80) return 'text-yellow-600';
     return 'text-green-600';
   };
 
-  const renderRating = (rating) => {
+  const renderRating = (rating?: number): JSX.Element => {
     if (!rating) return <span className="text-gray-400">Not rated</span>;
     
     return (
@@ -68,9 +112,13 @@ const EssaySubmissionList = ({ submissions, onViewDetail }) => {
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">
                   <h4 className="text-lg font-medium text-gray-900">
-                    {submission.title || submission.essayPrompt?.promptTitle}
+                    {submission.title || submission.essayPrompt?.promptTitle || 'Untitled Essay'}
                   </h4>
-                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(submission.status)}`}>
+                  <span 
+                    className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                      getStatusColor(submission.status)
+                    }`}
+                  >
                     {getStatusIcon(submission.status)}
                     {submission.status.replace('_', ' ')}
                   </span>
@@ -99,7 +147,12 @@ const EssaySubmissionList = ({ submissions, onViewDetail }) => {
                 <div className="flex items-center gap-6 text-sm">
                   <div className="flex items-center gap-2">
                     <span className="text-gray-500">Word count:</span>
-                    <span className={`font-medium ${getWordCountColor(submission.wordCount, submission.essayPrompt?.wordLimit || 500)}`}>
+                    <span className={`font-medium ${
+                      getWordCountColor(
+                        submission.wordCount, 
+                        submission.essayPrompt?.wordLimit
+                      )
+                    }`}>
                       {submission.wordCount} / {submission.essayPrompt?.wordLimit || 500}
                     </span>
                   </div>
@@ -111,7 +164,9 @@ const EssaySubmissionList = ({ submissions, onViewDetail }) => {
 
                   {submission.reviewStatus && (
                     <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                      submission.reviewStatus === 'REVIEWED' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                      submission.reviewStatus === 'REVIEWED' 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-yellow-100 text-yellow-800'
                     }`}>
                       {submission.reviewStatus}
                     </span>
@@ -144,8 +199,18 @@ const EssaySubmissionList = ({ submissions, onViewDetail }) => {
       {submissions.length === 0 && (
         <div className="p-12 text-center">
           <div className="text-gray-400 mb-4">
-            <svg className="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            <svg 
+              className="mx-auto h-12 w-12" 
+              fill="none" 
+              viewBox="0 0 24 24" 
+              stroke="currentColor"
+            >
+              <path 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                strokeWidth={2} 
+                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" 
+              />
             </svg>
           </div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">No submissions found</h3>

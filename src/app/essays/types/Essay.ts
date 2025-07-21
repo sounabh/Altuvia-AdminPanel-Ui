@@ -1,5 +1,4 @@
-// lib/essayActions.ts
-import { prisma } from "@/lib/prisma";
+
 
 // ================== INTERFACES ==================
 

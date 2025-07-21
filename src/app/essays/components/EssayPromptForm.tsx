@@ -1,82 +1,73 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { useFormik } from 'formik';
+import * as Yup from 'yup';
 import { X, Save, AlertCircle } from 'lucide-react';
 
-const EssayPromptForm = ({ prompt, onSubmit, onClose, loading }) => {
-  const [formData, setFormData] = useState({
-    admissionId: prompt?.admissionId || '',
-    programId: prompt?.programId || '',
-    intakeId: prompt?.intakeId || '',
-    promptTitle: prompt?.promptTitle || '',
-    promptText: prompt?.promptText || '',
-    wordLimit: prompt?.wordLimit || 500,
-    minWordCount: prompt?.minWordCount || 0,
-    isMandatory: prompt?.isMandatory ?? true,
-    isActive: prompt?.isActive ?? true,
-  });
+// ================== INTERFACES ==================
+export interface EssayPromptInput {
+  admissionId?: string;
+  programId?: string;
+  intakeId?: string;
+  promptTitle: string;
+  promptText: string;
+  wordLimit: number;
+  minWordCount?: number;
+  isMandatory?: boolean;
+  isActive?: boolean;
+}
+
+export interface EssayPromptFormProps {
+  prompt?: EssayPromptInput;
+  onSubmit: (values: EssayPromptInput) => void;
+  onClose: () => void;
+  loading: boolean;
+}
+
+// Validation schema using Yup
+const validationSchema = Yup.object({
   
-  const [errors, setErrors] = useState({});
+  promptTitle: Yup.string().required('Prompt title is required'),
+  promptText: Yup.string().required('Prompt text is required'),
+  wordLimit: Yup.number()
+    .min(1, 'Word limit must be greater than 0')
+    .required('Word limit is required'),
+  minWordCount: Yup.number()
+    .min(0, 'Minimum word count cannot be negative')
+    .test(
+      'lessThanWordLimit',
+      'Minimum word count cannot exceed word limit',
+      (value: number | undefined, context: { parent: { wordLimit: number; }; }) => {
+        return value === undefined || value <= context.parent.wordLimit;
+      }
+    )
+    .optional(),
+  isMandatory: Yup.boolean().optional(),
+  isActive: Yup.boolean().optional(),
+});
 
-  const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value
-    }));
-    
-    // Clear error when user starts typing
-    if (errors[name]) {
-      setErrors(prev => ({
-        ...prev,
-        [name]: ''
-      }));
-    }
-  };
-
-  const validateForm = () => {
-    const newErrors = {};
-    
-    if (!formData.admissionId.trim()) {
-      newErrors.admissionId = 'Admission ID is required';
-    }
-    
-    if (!formData.programId.trim()) {
-      newErrors.programId = 'Program ID is required';
-    }
-    
-    if (!formData.intakeId.trim()) {
-      newErrors.intakeId = 'Intake ID is required';
-    }
-    
-    if (!formData.promptTitle.trim()) {
-      newErrors.promptTitle = 'Prompt title is required';
-    }
-    
-    if (!formData.promptText.trim()) {
-      newErrors.promptText = 'Prompt text is required';
-    }
-    
-    if (formData.wordLimit < 1) {
-      newErrors.wordLimit = 'Word limit must be greater than 0';
-    }
-    
-    if (formData.minWordCount < 0) {
-      newErrors.minWordCount = 'Minimum word count cannot be negative';
-    }
-    
-    if (formData.minWordCount > formData.wordLimit) {
-      newErrors.minWordCount = 'Minimum word count cannot exceed word limit';
-    }
-    
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (validateForm()) {
-      onSubmit(formData);
-    }
-  };
+const EssayPromptForm: React.FC<EssayPromptFormProps> = ({
+  prompt,
+  onSubmit,
+  onClose,
+  loading,
+}) => {
+  const formik = useFormik<EssayPromptInput>({
+    initialValues: {
+      admissionId: prompt?.admissionId || '',
+      programId: prompt?.programId || '',
+      intakeId: prompt?.intakeId || '',
+      promptTitle: prompt?.promptTitle || '',
+      promptText: prompt?.promptText || '',
+      wordLimit: prompt?.wordLimit || 500,
+      minWordCount: prompt?.minWordCount || 0,
+      isMandatory: prompt?.isMandatory ?? true,
+      isActive: prompt?.isActive ?? true,
+    },
+    validationSchema,
+    onSubmit: (values: EssayPromptInput) => {
+      onSubmit(values);
+    },
+  });
 
   const inputClasses = "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent";
   const errorClasses = "border-red-500 focus:ring-red-500";
@@ -98,7 +89,7 @@ const EssayPromptForm = ({ prompt, onSubmit, onClose, loading }) => {
         </div>
 
         {/* Form */}
-        <div className="p-6 space-y-6">
+        <form onSubmit={formik.handleSubmit} className="p-6 space-y-6">
           {/* Admission ID */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -107,15 +98,16 @@ const EssayPromptForm = ({ prompt, onSubmit, onClose, loading }) => {
             <input
               type="text"
               name="admissionId"
-              value={formData.admissionId}
-              onChange={handleChange}
-              className={`${inputClasses} ${errors.admissionId ? errorClasses : ''}`}
+              value={formik.values.admissionId}
+              onChange={formik.handleChange}
+              onBlur={formik.handleBlur}
+              className={`${inputClasses} ${formik.touched.admissionId && formik.errors.admissionId ? errorClasses : ''}`}
               placeholder="Enter admission ID"
             />
-            {errors.admissionId && (
+            {formik.touched.admissionId && formik.errors.admissionId && (
               <div className="flex items-center mt-1 text-red-600 text-sm">
                 <AlertCircle size={16} className="mr-1" />
-                {errors.admissionId}
+                {formik.errors.admissionId}
               </div>
             )}
           </div>
@@ -128,15 +120,16 @@ const EssayPromptForm = ({ prompt, onSubmit, onClose, loading }) => {
             <input
               type="text"
               name="programId"
-              value={formData.programId}
-              onChange={handleChange}
-              className={`${inputClasses} ${errors.programId ? errorClasses : ''}`}
+              value={formik.values.programId}
+              onChange={formik.handleChange}
+              onBlur={formik.handleBlur}
+              className={`${inputClasses} ${formik.touched.programId && formik.errors.programId ? errorClasses : ''}`}
               placeholder="Enter program ID"
             />
-            {errors.programId && (
+            {formik.touched.programId && formik.errors.programId && (
               <div className="flex items-center mt-1 text-red-600 text-sm">
                 <AlertCircle size={16} className="mr-1" />
-                {errors.programId}
+                {formik.errors.programId}
               </div>
             )}
           </div>
@@ -149,15 +142,16 @@ const EssayPromptForm = ({ prompt, onSubmit, onClose, loading }) => {
             <input
               type="text"
               name="intakeId"
-              value={formData.intakeId}
-              onChange={handleChange}
-              className={`${inputClasses} ${errors.intakeId ? errorClasses : ''}`}
+              value={formik.values.intakeId}
+              onChange={formik.handleChange}
+              onBlur={formik.handleBlur}
+              className={`${inputClasses} ${formik.touched.intakeId && formik.errors.intakeId ? errorClasses : ''}`}
               placeholder="Enter intake ID"
             />
-            {errors.intakeId && (
+            {formik.touched.intakeId && formik.errors.intakeId && (
               <div className="flex items-center mt-1 text-red-600 text-sm">
                 <AlertCircle size={16} className="mr-1" />
-                {errors.intakeId}
+                {formik.errors.intakeId}
               </div>
             )}
           </div>
@@ -170,15 +164,16 @@ const EssayPromptForm = ({ prompt, onSubmit, onClose, loading }) => {
             <input
               type="text"
               name="promptTitle"
-              value={formData.promptTitle}
-              onChange={handleChange}
-              className={`${inputClasses} ${errors.promptTitle ? errorClasses : ''}`}
+              value={formik.values.promptTitle}
+              onChange={formik.handleChange}
+              onBlur={formik.handleBlur}
+              className={`${inputClasses} ${formik.touched.promptTitle && formik.errors.promptTitle ? errorClasses : ''}`}
               placeholder="Enter prompt title"
             />
-            {errors.promptTitle && (
+            {formik.touched.promptTitle && formik.errors.promptTitle && (
               <div className="flex items-center mt-1 text-red-600 text-sm">
                 <AlertCircle size={16} className="mr-1" />
-                {errors.promptTitle}
+                {formik.errors.promptTitle}
               </div>
             )}
           </div>
@@ -190,16 +185,17 @@ const EssayPromptForm = ({ prompt, onSubmit, onClose, loading }) => {
             </label>
             <textarea
               name="promptText"
-              value={formData.promptText}
-              onChange={handleChange}
+              value={formik.values.promptText}
+              onChange={formik.handleChange}
+              onBlur={formik.handleBlur}
               rows={4}
-              className={`${inputClasses} ${errors.promptText ? errorClasses : ''}`}
+              className={`${inputClasses} ${formik.touched.promptText && formik.errors.promptText ? errorClasses : ''}`}
               placeholder="Enter the essay prompt text"
             />
-            {errors.promptText && (
+            {formik.touched.promptText && formik.errors.promptText && (
               <div className="flex items-center mt-1 text-red-600 text-sm">
                 <AlertCircle size={16} className="mr-1" />
-                {errors.promptText}
+                {formik.errors.promptText}
               </div>
             )}
           </div>
@@ -213,16 +209,17 @@ const EssayPromptForm = ({ prompt, onSubmit, onClose, loading }) => {
               <input
                 type="number"
                 name="wordLimit"
-                value={formData.wordLimit}
-                onChange={handleChange}
+                value={formik.values.wordLimit}
+                onChange={formik.handleChange}
+                onBlur={formik.handleBlur}
                 min="1"
-                className={`${inputClasses} ${errors.wordLimit ? errorClasses : ''}`}
+                className={`${inputClasses} ${formik.touched.wordLimit && formik.errors.wordLimit ? errorClasses : ''}`}
                 placeholder="500"
               />
-              {errors.wordLimit && (
+              {formik.touched.wordLimit && formik.errors.wordLimit && (
                 <div className="flex items-center mt-1 text-red-600 text-sm">
                   <AlertCircle size={16} className="mr-1" />
-                  {errors.wordLimit}
+                  {formik.errors.wordLimit}
                 </div>
               )}
             </div>
@@ -234,16 +231,17 @@ const EssayPromptForm = ({ prompt, onSubmit, onClose, loading }) => {
               <input
                 type="number"
                 name="minWordCount"
-                value={formData.minWordCount}
-                onChange={handleChange}
+                value={formik.values.minWordCount}
+                onChange={formik.handleChange}
+                onBlur={formik.handleBlur}
                 min="0"
-                className={`${inputClasses} ${errors.minWordCount ? errorClasses : ''}`}
+                className={`${inputClasses} ${formik.touched.minWordCount && formik.errors.minWordCount ? errorClasses : ''}`}
                 placeholder="0"
               />
-              {errors.minWordCount && (
+              {formik.touched.minWordCount && formik.errors.minWordCount && (
                 <div className="flex items-center mt-1 text-red-600 text-sm">
                   <AlertCircle size={16} className="mr-1" />
-                  {errors.minWordCount}
+                  {formik.errors.minWordCount}
                 </div>
               )}
             </div>
@@ -255,8 +253,8 @@ const EssayPromptForm = ({ prompt, onSubmit, onClose, loading }) => {
               <input
                 type="checkbox"
                 name="isMandatory"
-                checked={formData.isMandatory}
-                onChange={handleChange}
+                checked={formik.values.isMandatory}
+                onChange={formik.handleChange}
                 className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
               />
               <label className="ml-2 block text-sm text-gray-700">
@@ -268,8 +266,8 @@ const EssayPromptForm = ({ prompt, onSubmit, onClose, loading }) => {
               <input
                 type="checkbox"
                 name="isActive"
-                checked={formData.isActive}
-                onChange={handleChange}
+                checked={formik.values.isActive}
+                onChange={formik.handleChange}
                 className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
               />
               <label className="ml-2 block text-sm text-gray-700">
@@ -288,9 +286,8 @@ const EssayPromptForm = ({ prompt, onSubmit, onClose, loading }) => {
               Cancel
             </button>
             <button
-              type="button"
-              onClick={handleSubmit}
-              disabled={loading}
+              type="submit"
+              
               className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center"
             >
               {loading ? (
@@ -306,10 +303,44 @@ const EssayPromptForm = ({ prompt, onSubmit, onClose, loading }) => {
               )}
             </button>
           </div>
-        </div>
+        </form>
       </div>
     </div>
   );
 };
 
 export default EssayPromptForm;
+
+// Additional interfaces for completeness
+export interface EssayPromptUpdateInput {
+  promptTitle?: string;
+  promptText?: string;
+  wordLimit?: number;
+  minWordCount?: number;
+  isMandatory?: boolean;
+  isActive?: boolean;
+  programId?: string;
+  intakeId?: string;
+}
+
+export interface EssaySubmissionInput {
+  essayPromptId: string;
+  userId?: string;
+  applicationId?: string;
+  title?: string;
+  content: string;
+  isUsingTemplate?: boolean;
+  templateVersion?: string;
+}
+
+export interface EssaySubmissionUpdateInput {
+  title?: string;
+  content?: string;
+  status?: "DRAFT" | "SUBMITTED" | "UNDER_REVIEW" | "ACCEPTED" | "REJECTED";
+  isUsingTemplate?: boolean;
+  templateVersion?: string;
+  reviewStatus?: "PENDING" | "REVIEWED";
+  reviewerId?: string;
+  reviewerComment?: string;
+  internalRating?: number;
+}

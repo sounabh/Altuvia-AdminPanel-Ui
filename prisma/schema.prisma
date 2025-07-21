@@ -6,6 +6,7 @@ datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
+   relationMode = "prisma" // ✅ This is correct
 }
 
 // ==================== USER MODELS ====================
@@ -893,7 +894,7 @@ model RefreshToken {
 
 model EssayPrompt {
   id           String   @id @default(cuid())
-  admissionId  String
+  admissionId  String?
   programId    String? // Optional if prompt is program-specific
   intakeId     String? // Optional if intake-specific
   promptTitle  String
@@ -906,7 +907,7 @@ model EssayPrompt {
   updatedAt    DateTime @updatedAt
 
   // Relations
-  admission   Admission         @relation(fields: [admissionId], references: [id], onDelete: Cascade)
+  admission   Admission?        @relation(fields: [admissionId], references: [id], onDelete: Cascade)
   program     Program?          @relation(fields: [programId], references: [id], onDelete: Cascade)
   intake      Intake?           @relation(fields: [intakeId], references: [id], onDelete: Cascade)
   submissions EssaySubmission[]

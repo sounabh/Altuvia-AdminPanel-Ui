@@ -1,314 +1,506 @@
-import React from 'react';
-import {
-  X,
-  Edit,
-  GraduationCap,
-  Clock,
-  DollarSign,
-  FileText,
-  Award,
-  ExternalLink,
-  Users,
-  Building,
-  TrendingUp
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// app/program-management/components/ProgramDetail.tsx
+import React, { useState } from 'react';
+import { 
+  X, GraduationCap, FileText, Award, 
+  Users, DollarSign, Globe, Calendar, BookOpen, 
+  Edit, Download, Trash2, Plus 
 } from 'lucide-react';
-
-// ✅ Interfaces
-interface University {
-  name: string;
-}
-
-interface Department {
-  name: string;
-}
-
-interface Ranking {
-  rank: number;
-  year: number;
-  source?: string;
-}
-
-interface ExternalLink {
-  title: string;
-  url: string;
-}
-
-interface Syllabus {
-  fileUrl: string;
-}
-
-interface ProgramCount {
-  admissions: number;
-  scholarships: number;
-  tuitionBreakdowns: number;
-}
-
-interface Program {
-  programName: string;
-  university?: University;
-  department?: Department;
-  isActive: boolean;
-  degreeType?: string;
-  programLength?: number;
-  averageEntranceScore?: number;
-  programTuitionFees?: number;
-  programAdditionalFees?: number;
-  specializations?: string;
-  programDescription?: string;
-  curriculumOverview?: string;
-  admissionRequirements?: string;
-  rankings?: Ranking[];
-  externalLinks?: ExternalLink[];
-  syllabus?: Syllabus;
-  _count?: ProgramCount;
-}
+import type { 
+  ProgramWithFullRelations,
+  CreateSyllabusInput,
+  CreateProgramRankingInput,
+  UpdateProgramRankingInput,
+  CreateExternalLinkInput,
+  UpdateExternalLinkInput
+} from '../types/programs';
 
 interface ProgramDetailProps {
-  program?: Program | null;
-  onEdit: (program: Program) => void;
+  program: ProgramWithFullRelations;
+  onEdit: () => void;
   onClose: () => void;
+  onSyllabusUpload: (data: CreateSyllabusInput) => void;
+  onSyllabusDelete: (programId: string) => void;
+  onRankingAction: (
+    action: 'create' | 'update' | 'delete',
+    data: CreateProgramRankingInput | UpdateProgramRankingInput,
+    id?: string
+  ) => void;
+  onLinkAction: (
+    action: 'create' | 'update' | 'delete',
+    data: CreateExternalLinkInput | UpdateExternalLinkInput,
+    id?: string
+  ) => void;
 }
 
-// ✅ Component
-const ProgramDetail: React.FC<ProgramDetailProps> = ({ program, onEdit, onClose }) => {
-  if (!program) return null;
+const ProgramDetail: React.FC<ProgramDetailProps> = ({
+  program,
+  onEdit,
+  onClose,
+  onSyllabusUpload,
+  onSyllabusDelete,
+  onRankingAction,
+  onLinkAction
+}) => {
+  const [showSyllabusForm, setShowSyllabusForm] = useState(false);
+  const [showRankingForm, setShowRankingForm] = useState(false);
+  const [showLinkForm, setShowLinkForm] = useState(false);
+  const [selectedRanking, setSelectedRanking] = useState<any>(null);
+  const [selectedLink, setSelectedLink] = useState<any>(null);
+  const [syllabusFile, setSyllabusFile] = useState<File | null>(null);
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(amount);
+  const handleSyllabusSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (syllabusFile) {
+      // In a real app, you would upload the file and get a URL
+      const fakeFileUrl = URL.createObjectURL(syllabusFile);
+      onSyllabusUpload({
+        programId: program.id,
+        fileUrl: fakeFileUrl
+      });
+      setShowSyllabusForm(false);
+      setSyllabusFile(null);
+    }
   };
 
-  const formatNumber = (num: number) => {
-    return new Intl.NumberFormat('en-US').format(num);
+  const handleRankingSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const formData = new FormData(e.target as HTMLFormElement);
+    const data = {
+      programId: program.id,
+      year: parseInt(formData.get('year') as string),
+      rank: parseInt(formData.get('rank') as string),
+      source: formData.get('source') as string
+    };
+    
+    if (selectedRanking) {
+      onRankingAction('update', data, selectedRanking.id);
+    } else {
+      onRankingAction('create', data);
+    }
+    setShowRankingForm(false);
+    setSelectedRanking(null);
+  };
+
+  const handleLinkSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const formData = new FormData(e.target as HTMLFormElement);
+    const data = {
+      programId: program.id,
+      title: formData.get('title') as string,
+      url: formData.get('url') as string
+    };
+    
+    if (selectedLink) {
+      onLinkAction('update', data, selectedLink.id);
+    } else {
+      onLinkAction('create', data);
+    }
+    setShowLinkForm(false);
+    setSelectedLink(null);
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-sm">
-      <div className="p-6 border-b border-gray-200">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <GraduationCap className="w-6 h-6 text-blue-600" />
-            <h2 className="text-xl font-semibold text-gray-900">Program Details</h2>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => onEdit(program)}
-              className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-            >
-              <Edit size={16} />
-            </button>
-            <button
-              onClick={onClose}
-              className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
-            >
-              <X size={16} />
-            </button>
-          </div>
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+      {/* Header */}
+      <div className="flex justify-between items-center border-b border-gray-200 px-6 py-4">
+        <div className="flex items-center">
+          <GraduationCap className="h-6 w-6 text-green-600 mr-2" />
+          <h2 className="text-xl font-bold text-gray-900">{program.programName}</h2>
         </div>
-
-        <div className="space-y-2">
-          <h3 className="text-lg font-medium text-gray-900">{program.programName}</h3>
-          <div className="flex items-center gap-2 text-sm text-gray-600">
-            <Building size={14} />
-            <span>{program.university?.name}</span>
-            <span>•</span>
-            <span>{program.department?.name}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span
-              className={`px-2 py-1 rounded-full text-xs font-medium ${
-                program.isActive
-                  ? 'bg-green-100 text-green-800'
-                  : 'bg-red-100 text-red-800'
-              }`}
-            >
-              {program.isActive ? 'Active' : 'Inactive'}
-            </span>
-            {program.degreeType && (
-              <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
-                {program.degreeType}
-              </span>
-            )}
-          </div>
+        <div className="flex space-x-2">
+          <button
+            onClick={onEdit}
+            className="text-blue-600 hover:text-blue-800 flex items-center"
+          >
+            <Edit className="h-4 w-4 mr-1" /> Edit
+          </button>
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-700"
+          >
+            <X className="h-5 w-5" />
+          </button>
         </div>
       </div>
 
-      <div className="p-6 space-y-6">
-        {/* Basic Information */}
-        <div>
-          <h4 className="text-sm font-medium text-gray-900 mb-3">Basic Information</h4>
-          <div className="grid grid-cols-2 gap-4">
-            {program.programLength && (
-              <div className="flex items-center gap-2">
-                <Clock size={14} className="text-gray-500" />
-                <span className="text-sm text-gray-600">{program.programLength} years</span>
+      {/* Main Content */}
+      <div className="p-6">
+        {/* Program Overview */}
+        <div className="mb-8">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Program Overview</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex items-center">
+              <BookOpen className="h-5 w-5 text-gray-500 mr-2" />
+              <div>
+                <p className="text-sm text-gray-500">Degree Type</p>
+                <p className="font-medium">{program.degreeType || 'N/A'}</p>
               </div>
-            )}
-            {program.averageEntranceScore && (
-              <div className="flex items-center gap-2">
-                <TrendingUp size={14} className="text-gray-500" />
-                <span className="text-sm text-gray-600">
-                  Avg. Score: {program.averageEntranceScore}
-                </span>
+            </div>
+            <div className="flex items-center">
+              <Calendar className="h-5 w-5 text-gray-500 mr-2" />
+              <div>
+                <p className="text-sm text-gray-500">Duration</p>
+                <p className="font-medium">{program.programLength ? `${program.programLength} years` : 'N/A'}</p>
               </div>
-            )}
+            </div>
+            <div className="flex items-center">
+              <DollarSign className="h-5 w-5 text-gray-500 mr-2" />
+              <div>
+                <p className="text-sm text-gray-500">Tuition Fees</p>
+                <p className="font-medium">
+                  {program.programTuitionFees ? `$${program.programTuitionFees.toLocaleString()}` : 'N/A'}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center">
+              <Users className="h-5 w-5 text-gray-500 mr-2" />
+              <div>
+                <p className="text-sm text-gray-500">Students</p>
+                <p className="font-medium">{program._count?.admissions || 0}</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="mt-4">
+            <p className="text-sm text-gray-500 mb-2">Description</p>
+            <p className="text-gray-700">
+              {program.programDescription || 'No description available'}
+            </p>
           </div>
         </div>
 
-        {/* Financial Info */}
-        {(program.programTuitionFees || program.programAdditionalFees) && (
-          <div>
-            <h4 className="text-sm font-medium text-gray-900 mb-3">Financial Information</h4>
-            <div className="space-y-2">
-              {program.programTuitionFees && (
-                <div className="flex items-center gap-2">
-                  <DollarSign size={14} className="text-gray-500" />
-                  <span className="text-sm text-gray-600">
-                    Tuition: {formatCurrency(program.programTuitionFees)}
-                  </span>
-                </div>
-              )}
-              {program.programAdditionalFees && (
-                <div className="flex items-center gap-2">
-                  <DollarSign size={14} className="text-gray-500" />
-                  <span className="text-sm text-gray-600">
-                    Additional Fees: {formatCurrency(program.programAdditionalFees)}
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Specializations */}
-        {program.specializations && (
-          <div>
-            <h4 className="text-sm font-medium text-gray-900 mb-3">Specializations</h4>
-            <div className="flex flex-wrap gap-2">
-              {program.specializations.split(',').map((spec, index) => (
-                <span key={index} className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">
-                  {spec.trim()}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Description */}
-        {program.programDescription && (
-          <div>
-            <h4 className="text-sm font-medium text-gray-900 mb-3">Description</h4>
-            <p className="text-sm text-gray-600 leading-relaxed">
-              {program.programDescription}
-            </p>
-          </div>
-        )}
-
-        {/* Curriculum */}
-        {program.curriculumOverview && (
-          <div>
-            <h4 className="text-sm font-medium text-gray-900 mb-3">Curriculum Overview</h4>
-            <p className="text-sm text-gray-600 leading-relaxed">{program.curriculumOverview}</p>
-          </div>
-        )}
-
-        {/* Admission */}
-        {program.admissionRequirements && (
-          <div>
-            <h4 className="text-sm font-medium text-gray-900 mb-3">Admission Requirements</h4>
-            <p className="text-sm text-gray-600 leading-relaxed">{program.admissionRequirements}</p>
-          </div>
-        )}
-
-        {/* Rankings */}
-        {program.rankings && program.rankings.length > 0 && (
-          <div>
-            <h4 className="text-sm font-medium text-gray-900 mb-3">Rankings</h4>
-            <div className="space-y-2">
-              {program.rankings.slice(0, 3).map((ranking, index) => (
-                <div key={index} className="flex items-center gap-2">
-                  <Award size={14} className="text-yellow-500" />
-                  <span className="text-sm text-gray-600">
-                    Rank #{ranking.rank} ({ranking.year})
-                    {ranking.source && ` - ${ranking.source}`}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* External Links */}
-        {program.externalLinks && program.externalLinks.length > 0 && (
-          <div>
-            <h4 className="text-sm font-medium text-gray-900 mb-3">External Links</h4>
-            <div className="space-y-2">
-              {program.externalLinks.map((link, index) => (
-                <a
-                  key={index}
-                  href={link.url}
+        {/* Syllabus Section */}
+        <div className="mb-8">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">Syllabus</h3>
+            {program.syllabus ? (
+              <div className="flex space-x-2">
+                <a 
+                  href={program.syllabus.fileUrl} 
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800"
+                  className="text-blue-600 hover:text-blue-800 flex items-center"
                 >
-                  <ExternalLink size={14} />
-                  {link.title}
+                  <Download className="h-4 w-4 mr-1" /> Download
                 </a>
-              ))}
-            </div>
+                <button
+                  onClick={() => onSyllabusDelete(program.id)}
+                  className="text-red-600 hover:text-red-800 flex items-center"
+                >
+                  <Trash2 className="h-4 w-4 mr-1" /> Remove
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowSyllabusForm(true)}
+                className="text-blue-600 hover:text-blue-800 flex items-center"
+              >
+                <Plus className="h-4 w-4 mr-1" /> Upload Syllabus
+              </button>
+            )}
           </div>
-        )}
 
-        {/* Statistics */}
-        {program._count && (
-          <div>
-            <h4 className="text-sm font-medium text-gray-900 mb-3">Statistics</h4>
-            <div className="grid grid-cols-1 gap-3">
-              {program._count.admissions > 0 && (
-                <div className="flex items-center gap-2">
-                  <Users size={14} className="text-gray-500" />
-                  <span className="text-sm text-gray-600">
-                    {formatNumber(program._count.admissions)} admissions
-                  </span>
+          {showSyllabusForm && (
+            <div className="bg-gray-50 p-4 rounded-lg mb-4">
+              <form onSubmit={handleSyllabusSubmit}>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Syllabus File
+                  </label>
+                  <input
+                    type="file"
+                    accept=".pdf,.doc,.docx"
+                    onChange={(e) => setSyllabusFile(e.target.files?.[0] || null)}
+                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                    required
+                  />
                 </div>
-              )}
-              {program._count.scholarships > 0 && (
-                <div className="flex items-center gap-2">
-                  <Award size={14} className="text-gray-500" />
-                  <span className="text-sm text-gray-600">
-                    {formatNumber(program._count.scholarships)} scholarships
-                  </span>
+                <div className="flex justify-end space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowSyllabusForm(false)}
+                    className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700"
+                  >
+                    Upload
+                  </button>
                 </div>
-              )}
-              {program._count.tuitionBreakdowns > 0 && (
-                <div className="flex items-center gap-2">
-                  <DollarSign size={14} className="text-gray-500" />
-                  <span className="text-sm text-gray-600">
-                    {formatNumber(program._count.tuitionBreakdowns)} fee structures
-                  </span>
-                </div>
-              )}
+              </form>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Syllabus */}
-        {program.syllabus && (
-          <div>
-            <h4 className="text-sm font-medium text-gray-900 mb-3">Syllabus</h4>
-            <a
-              href={program.syllabus.fileUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800"
+          {!program.syllabus && !showSyllabusForm && (
+            <div className="bg-gray-50 rounded-lg p-8 text-center">
+              <FileText className="mx-auto h-12 w-12 text-gray-400" />
+              <h3 className="mt-2 text-sm font-medium text-gray-900">No syllabus uploaded</h3>
+              <p className="mt-1 text-sm text-gray-500">Upload a syllabus to provide curriculum information</p>
+            </div>
+          )}
+        </div>
+
+        {/* Rankings Section */}
+        <div className="mb-8">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">Rankings</h3>
+            <button
+              onClick={() => {
+                setSelectedRanking(null);
+                setShowRankingForm(true);
+              }}
+              className="text-blue-600 hover:text-blue-800 flex items-center"
             >
-              <FileText size={14} />
-              View Syllabus PDF
-            </a>
+              <Plus className="h-4 w-4 mr-1" /> Add Ranking
+            </button>
           </div>
-        )}
+
+          {showRankingForm && (
+            <div className="bg-gray-50 p-4 rounded-lg mb-4">
+              <form onSubmit={handleRankingSubmit}>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Year
+                    </label>
+                    <input
+                      type="number"
+                      name="year"
+                      defaultValue={selectedRanking?.year}
+                      min="2000"
+                      max={new Date().getFullYear()}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Rank
+                    </label>
+                    <input
+                      type="number"
+                      name="rank"
+                      defaultValue={selectedRanking?.rank}
+                      min="1"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Source
+                    </label>
+                    <input
+                      type="text"
+                      name="source"
+                      defaultValue={selectedRanking?.source || ''}
+                      placeholder="QS, Times, etc."
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowRankingForm(false);
+                      setSelectedRanking(null);
+                    }}
+                    className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700"
+                  >
+                    {selectedRanking ? 'Update' : 'Add'} Ranking
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {program.rankings.length === 0 && !showRankingForm ? (
+            <div className="bg-gray-50 rounded-lg p-8 text-center">
+              <Award className="mx-auto h-12 w-12 text-gray-400" />
+              <h3 className="mt-2 text-sm font-medium text-gray-900">No rankings added</h3>
+              <p className="mt-1 text-sm text-gray-500">Add rankings to showcase program achievements</p>
+            </div>
+          ) : (
+            <div className="overflow-hidden border border-gray-200 rounded-lg">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Year
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Rank
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Source
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {program.rankings.map((ranking) => (
+                    <tr key={ranking.id}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {ranking.year}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        #{ranking.rank}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {ranking.source || 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
+                        <button
+                          onClick={() => {
+                            setSelectedRanking(ranking);
+                            setShowRankingForm(true);
+                          }}
+                          className="text-blue-600 hover:text-blue-900 mr-3"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => onRankingAction('delete', {} , ranking.id)}
+                          className="text-red-600 hover:text-red-900"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* External Links Section */}
+        <div>
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">External Links</h3>
+            <button
+              onClick={() => {
+                setSelectedLink(null);
+                setShowLinkForm(true);
+              }}
+              className="text-blue-600 hover:text-blue-800 flex items-center"
+            >
+              <Plus className="h-4 w-4 mr-1" /> Add Link
+            </button>
+          </div>
+
+          {showLinkForm && (
+            <div className="bg-gray-50 p-4 rounded-lg mb-4">
+              <form onSubmit={handleLinkSubmit}>
+                <div className="grid grid-cols-1 gap-4 mb-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Title
+                    </label>
+                    <input
+                      type="text"
+                      name="title"
+                      defaultValue={selectedLink?.title}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      URL
+                    </label>
+                    <input
+                      type="url"
+                      name="url"
+                      defaultValue={selectedLink?.url}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                      placeholder="https://example.com"
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowLinkForm(false);
+                      setSelectedLink(null);
+                    }}
+                    className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700"
+                  >
+                    {selectedLink ? 'Update' : 'Add'} Link
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {program.externalLinks.length === 0 && !showLinkForm ? (
+            <div className="bg-gray-50 rounded-lg p-8 text-center">
+              <Globe className="mx-auto h-12 w-12 text-gray-400" />
+              <h3 className="mt-2 text-sm font-medium text-gray-900">No external links added</h3>
+              <p className="mt-1 text-sm text-gray-500">Add links to official program pages or resources</p>
+            </div>
+          ) : (
+            <div className="bg-white shadow overflow-hidden rounded-md">
+              <ul className="divide-y divide-gray-200">
+                {program.externalLinks.map((link) => (
+                  <li key={link.id} className="px-6 py-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-medium text-gray-900">{link.title}</div>
+                        <a 
+                          href={link.url} 
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:text-blue-800 text-sm truncate max-w-xs block"
+                        >
+                          {link.url}
+                        </a>
+                      </div>
+                      <div>
+                        <button
+                          onClick={() => {
+                            setSelectedLink(link);
+                            setShowLinkForm(true);
+                          }}
+                          className="text-blue-600 hover:text-blue-900 mr-3"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => onLinkAction('delete', {} , link.id)}
+                          className="text-red-600 hover:text-red-900"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

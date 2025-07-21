@@ -1,43 +1,18 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
-import React, { useState, useEffect } from 'react';
-import { X, Save, Plus, Trash2, Upload, FileText, ExternalLink, Award } from 'lucide-react';
-
-interface Program {
-  id?: string;
-  universityId: string;
-  departmentId: string;
-  programName: string;
-  programSlug: string;
-  degreeType?: string;
-  programLength?: number;
-  specializations?: string;
-  programDescription?: string;
-  curriculumOverview?: string;
-  admissionRequirements?: string;
-  averageEntranceScore?: number;
-  programTuitionFees?: number;
-  programAdditionalFees?: number;
-  programMetaTitle?: string;
-  programMetaDescription?: string;
-  isActive: boolean;
-  rankings?: Array<{
-    id?: string;
-    year: number;
-    rank: number;
-    source?: string;
-  }>;
-  externalLinks?: Array<{
-    id?: string;
-    title: string;
-    url: string;
-  }>;
-}
+// app/program-management/components/ProgramForm.tsx
+import React from 'react';
+import { GraduationCap, X } from 'lucide-react';
+import type { 
+  ProgramWithFullRelations, 
+  CreateProgramInput, 
+  UpdateProgramInput, 
+  DepartmentWithPrograms
+} from '../types/programs';
 
 interface ProgramFormProps {
-  program?: Program | null;
-  universities: Array<{ id: string; name: string; slug: string }>;
-  departments: Array<{ id: string; name: string; universityId: string }>;
-  onSubmit: (data: Program) => void;
+  program?: ProgramWithFullRelations;
+  universities: { id: string; name: string; slug: string }[];
+  departments: DepartmentWithPrograms[];
+  onSubmit: (data: CreateProgramInput | UpdateProgramInput) => void;
   onClose: () => void;
   loading: boolean;
 }
@@ -50,535 +25,371 @@ const ProgramForm: React.FC<ProgramFormProps> = ({
   onClose,
   loading
 }) => {
-  const [formData, setFormData] = useState<Program>({
-    universityId: '',
-    departmentId: '',
-    programName: '',
-    programSlug: '',
-    degreeType: '',
-    programLength: undefined,
-    specializations: '',
-    programDescription: '',
-    curriculumOverview: '',
-    admissionRequirements: '',
-    averageEntranceScore: undefined,
-    programTuitionFees: undefined,
-    programAdditionalFees: undefined,
-    programMetaTitle: '',
-    programMetaDescription: '',
-    isActive: true,
-    rankings: [],
-    externalLinks: []
-  });
-
-  const [activeTab, setActiveTab] = useState('basic');
-
-  useEffect(() => {
-    if (program) {
-      setFormData({
-        ...program,
-        rankings: program.rankings || [],
-        externalLinks: program.externalLinks || []
-      });
-    }
-  }, [program]);
-
-  useEffect(() => {
-    if (formData.programName && !program) {
-      const slug = formData.programName
-        .toLowerCase()
-        .replace(/[^a-z0-9 -]/g, '')
-        .replace(/\s+/g, '-')
-        .replace(/-+/g, '-');
-      setFormData(prev => ({ ...prev, programSlug: slug }));
-    }
-  }, [formData.programName, program]);
-
-  const handleInputChange = (field: keyof Program, value: any) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-  };
-
-  const addRanking = () => {
-    setFormData(prev => ({
-      ...prev,
-      rankings: [...(prev.rankings || []), { year: new Date().getFullYear(), rank: 1, source: '' }]
-    }));
-  };
-
-  const updateRanking = (index: number, field: string, value: any) => {
-    setFormData(prev => ({
-      ...prev,
-      rankings: prev.rankings?.map((ranking, i) => 
-        i === index ? { ...ranking, [field]: value } : ranking
-      )
-    }));
-  };
-
-  const removeRanking = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      rankings: prev.rankings?.filter((_, i) => i !== index)
-    }));
-  };
-
-  const addExternalLink = () => {
-    setFormData(prev => ({
-      ...prev,
-      externalLinks: [...(prev.externalLinks || []), { title: '', url: '' }]
-    }));
-  };
-
-  const updateExternalLink = (index: number, field: string, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      externalLinks: prev.externalLinks?.map((link, i) => 
-        i === index ? { ...link, [field]: value } : link
-      )
-    }));
-  };
-
-  const removeExternalLink = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      externalLinks: prev.externalLinks?.filter((_, i) => i !== index)
-    }));
-  };
+  const isEditing = !!program;
+  
+  // Filter departments based on selected university
+  const [selectedUniversity, setSelectedUniversity] = React.useState(
+    program?.universityId || ''
+  );
+  
+  const filteredDepartments = departments.filter(
+    dept => dept.universityId === selectedUniversity
+  );
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(formData);
+    const formData = new FormData(e.target as HTMLFormElement);
+    const data: CreateProgramInput = {
+      universityId: formData.get('universityId') as string,
+      departmentId: formData.get('departmentId') as string,
+      programName: formData.get('programName') as string,
+      programSlug: formData.get('programSlug') as string,
+      degreeType: formData.get('degreeType') as string || undefined,
+      programLength: parseInt(formData.get('programLength') as string) || undefined,
+      specializations: formData.get('specializations') as string || undefined,
+      programDescription: formData.get('programDescription') as string || undefined,
+      curriculumOverview: formData.get('curriculumOverview') as string || undefined,
+      admissionRequirements: formData.get('admissionRequirements') as string || undefined,
+      averageEntranceScore: parseInt(formData.get('averageEntranceScore') as string) || undefined,
+      programTuitionFees: parseInt(formData.get('programTuitionFees') as string) || undefined,
+      programAdditionalFees: parseInt(formData.get('programAdditionalFees') as string) || undefined,
+      programMetaTitle: formData.get('programMetaTitle') as string || undefined,
+      programMetaDescription: formData.get('programMetaDescription') as string || undefined,
+      isActive: formData.get('isActive') === 'on'
+    };
+    onSubmit(data);
   };
 
-  const filteredDepartments = departments.filter(dept => 
-    dept.universityId === formData.universityId
-  );
-
-  const degreeTypes = ['Bachelor', 'Master', 'PhD', 'Diploma', 'Certificate'];
-
   return (
-    <div className="max-w-4xl mx-auto">
-      <div className="bg-white rounded-lg shadow-lg">
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-900">
-            {program ? 'Edit Program' : 'Create New Program'}
-          </h2>
+    <div className="p-6">
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-xl font-bold text-gray-900 flex items-center">
+          <GraduationCap className="h-5 w-5 text-green-600 mr-2" />
+          {isEditing ? 'Edit Program' : 'Create New Program'}
+        </h2>
+        <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+          <X className="h-5 w-5" />
+        </button>
+      </div>
+
+      <form onSubmit={handleSubmit}>
+        <div className="grid grid-cols-1 gap-6 mb-6">
+          {/* University and Department */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label htmlFor="universityId" className="block text-sm font-medium text-gray-700 mb-1">
+                University
+              </label>
+              <select
+                id="universityId"
+                name="universityId"
+                defaultValue={program?.universityId || ''}
+                onChange={(e) => setSelectedUniversity(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                required
+                disabled={loading}
+              >
+                <option value="">Select University</option>
+                {universities.map((university) => (
+                  <option key={university.id} value={university.id}>
+                    {university.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            <div>
+              <label htmlFor="departmentId" className="block text-sm font-medium text-gray-700 mb-1">
+                Department
+              </label>
+              <select
+                id="departmentId"
+                name="departmentId"
+                defaultValue={program?.departmentId || ''}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                required
+               
+              >
+                <option value="">Select Department</option>
+                {filteredDepartments.map((department) => (
+                  <option key={department.id} value={department.id}>
+                    {department.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          
+          {/* Program Name and Slug */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label htmlFor="programName" className="block text-sm font-medium text-gray-700 mb-1">
+                Program Name
+              </label>
+              <input
+                type="text"
+                id="programName"
+                name="programName"
+                defaultValue={program?.programName || ''}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                placeholder="e.g., Computer Science and Engineering"
+                required
+                disabled={loading}
+              />
+            </div>
+            
+            <div>
+              <label htmlFor="programSlug" className="block text-sm font-medium text-gray-700 mb-1">
+                URL Slug
+              </label>
+              <div className="mt-1 flex rounded-md shadow-sm">
+                <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-gray-300 bg-gray-50 text-gray-500 sm:text-sm">
+                  university.edu/
+                </span>
+                <input
+                  type="text"
+                  id="programSlug"
+                  name="programSlug"
+                  defaultValue={program?.programSlug || ''}
+                  className="flex-1 min-w-0 block w-full px-3 py-2 rounded-none rounded-r-md border-gray-300 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="computer-science-engineering"
+                  required
+                  disabled={loading}
+                />
+              </div>
+            </div>
+          </div>
+          
+          {/* Degree and Duration */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label htmlFor="degreeType" className="block text-sm font-medium text-gray-700 mb-1">
+                Degree Type
+              </label>
+              <select
+                id="degreeType"
+                name="degreeType"
+                defaultValue={program?.degreeType || ''}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                disabled={loading}
+              >
+                <option value="">Select Degree Type</option>
+                <option value="Bachelor">Bachelors</option>
+                <option value="Master">Masters</option>
+                <option value="Doctorate">Doctorate</option>
+                <option value="Diploma">Diploma</option>
+                <option value="Certificate">Certificate</option>
+              </select>
+            </div>
+            
+            <div>
+              <label htmlFor="programLength" className="block text-sm font-medium text-gray-700 mb-1">
+                Program Duration (years)
+              </label>
+              <input
+                type="number"
+                id="programLength"
+                name="programLength"
+                min="1"
+                max="10"
+                defaultValue={program?.programLength || ''}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                placeholder="e.g., 4"
+                disabled={loading}
+              />
+            </div>
+          </div>
+          
+          {/* Specializations and Description */}
+          <div>
+            <label htmlFor="specializations" className="block text-sm font-medium text-gray-700 mb-1">
+              Specializations
+            </label>
+            <input
+              type="text"
+              id="specializations"
+              name="specializations"
+              defaultValue={program?.specializations || ''}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Comma separated list of specializations"
+              disabled={loading}
+            />
+          </div>
+          
+          <div>
+            <label htmlFor="programDescription" className="block text-sm font-medium text-gray-700 mb-1">
+              Program Description
+            </label>
+            <textarea
+              id="programDescription"
+              name="programDescription"
+              defaultValue={program?.programDescription || ''}
+              rows={3}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Brief description of the program..."
+              disabled={loading}
+            />
+          </div>
+          
+          {/* Curriculum and Requirements */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label htmlFor="curriculumOverview" className="block text-sm font-medium text-gray-700 mb-1">
+                Curriculum Overview
+              </label>
+              <textarea
+                id="curriculumOverview"
+                name="curriculumOverview"
+                defaultValue={program?.curriculumOverview || ''}
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Overview of curriculum structure..."
+                disabled={loading}
+              />
+            </div>
+            
+            <div>
+              <label htmlFor="admissionRequirements" className="block text-sm font-medium text-gray-700 mb-1">
+                Admission Requirements
+              </label>
+              <textarea
+                id="admissionRequirements"
+                name="admissionRequirements"
+                defaultValue={program?.admissionRequirements || ''}
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                placeholder="List of admission requirements..."
+                disabled={loading}
+              />
+            </div>
+          </div>
+          
+          {/* Fees and Scores */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div>
+              <label htmlFor="averageEntranceScore" className="block text-sm font-medium text-gray-700 mb-1">
+                Average Entrance Score
+              </label>
+              <input
+                type="number"
+                id="averageEntranceScore"
+                name="averageEntranceScore"
+                min="0"
+                max="100"
+                step="0.1"
+                defaultValue={program?.averageEntranceScore || ''}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                placeholder="e.g., 85.5"
+                disabled={loading}
+              />
+            </div>
+            
+            <div>
+              <label htmlFor="programTuitionFees" className="block text-sm font-medium text-gray-700 mb-1">
+                Tuition Fees ($)
+              </label>
+              <input
+                type="number"
+                id="programTuitionFees"
+                name="programTuitionFees"
+                min="0"
+                defaultValue={program?.programTuitionFees || ''}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                placeholder="e.g., 10000"
+                disabled={loading}
+              />
+            </div>
+            
+            <div>
+              <label htmlFor="programAdditionalFees" className="block text-sm font-medium text-gray-700 mb-1">
+                Additional Fees ($)
+              </label>
+              <input
+                type="number"
+                id="programAdditionalFees"
+                name="programAdditionalFees"
+                min="0"
+                defaultValue={program?.programAdditionalFees || ''}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                placeholder="e.g., 500"
+                disabled={loading}
+              />
+            </div>
+          </div>
+          
+          {/* SEO Metadata */}
+          <div>
+            <label htmlFor="programMetaTitle" className="block text-sm font-medium text-gray-700 mb-1">
+              SEO Title
+            </label>
+            <input
+              type="text"
+              id="programMetaTitle"
+              name="programMetaTitle"
+              defaultValue={program?.programMetaTitle || ''}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Meta title for SEO"
+              disabled={loading}
+            />
+          </div>
+          
+          <div>
+            <label htmlFor="programMetaDescription" className="block text-sm font-medium text-gray-700 mb-1">
+              SEO Description
+            </label>
+            <textarea
+              id="programMetaDescription"
+              name="programMetaDescription"
+              defaultValue={program?.programMetaDescription || ''}
+              rows={2}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Meta description for SEO"
+              disabled={loading}
+            />
+          </div>
+          
+          {/* Status */}
+          <div className="flex items-center">
+            <input
+              id="isActive"
+              name="isActive"
+              type="checkbox"
+              defaultChecked={program?.isActive ?? true}
+              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              disabled={loading}
+            />
+            <label htmlFor="isActive" className="ml-2 block text-sm text-gray-900">
+              Active Program
+            </label>
+          </div>
+        </div>
+        
+        <div className="flex justify-end space-x-3">
           <button
+            type="button"
             onClick={onClose}
-            className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+            disabled={loading}
+            className="px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
           >
-            <X size={20} />
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={loading}
+            className="px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+          >
+            {loading ? (
+              <span className="flex items-center">
+                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                {isEditing ? 'Updating...' : 'Creating...'}
+              </span>
+            ) : isEditing ? 'Update Program' : 'Create Program'}
           </button>
         </div>
-
-        <form onSubmit={handleSubmit}>
-          {/* Tab Navigation */}
-          <div className="border-b border-gray-200">
-            <nav className="flex space-x-8 px-6">
-              {[
-                { key: 'basic', label: 'Basic Info', icon: FileText },
-                { key: 'details', label: 'Details', icon: FileText },
-                { key: 'rankings', label: 'Rankings', icon: Award },
-                { key: 'links', label: 'External Links', icon: ExternalLink }
-              ].map(({ key, label, icon: Icon }) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setActiveTab(key)}
-                  className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${
-                    activeTab === key
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  <Icon size={16} />
-                  {label}
-                </button>
-              ))}
-            </nav>
-          </div>
-
-          <div className="p-6">
-            {activeTab === 'basic' && (
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      University *
-                    </label>
-                    <select
-                      value={formData.universityId}
-                      onChange={(e) => handleInputChange('universityId', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      required
-                    >
-                      <option value="">Select University</option>
-                      {universities.map(uni => (
-                        <option key={uni.id} value={uni.id}>{uni.name}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Department *
-                    </label>
-                    <select
-                      value={formData.departmentId}
-                      onChange={(e) => handleInputChange('departmentId', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      required
-                      disabled={!formData.universityId}
-                    >
-                      <option value="">Select Department</option>
-                      {filteredDepartments.map(dept => (
-                        <option key={dept.id} value={dept.id}>{dept.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Program Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.programName}
-                    onChange={(e) => handleInputChange('programName', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Program Slug *
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.programSlug}
-                    onChange={(e) => handleInputChange('programSlug', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Degree Type
-                    </label>
-                    <select
-                      value={formData.degreeType}
-                      onChange={(e) => handleInputChange('degreeType', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Select Degree Type</option>
-                      {degreeTypes.map(type => (
-                        <option key={type} value={type}>{type}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Program Length (years)
-                    </label>
-                    <input
-                      type="number"
-                      value={formData.programLength || ''}
-                      onChange={(e) => handleInputChange('programLength', e.target.value ? parseInt(e.target.value) : undefined)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      min="1"
-                      max="10"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Specializations (comma-separated)
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.specializations}
-                    onChange={(e) => handleInputChange('specializations', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="e.g., AI, Machine Learning, Software Engineering"
-                  />
-                </div>
-
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    id="isActive"
-                    checked={formData.isActive}
-                    onChange={(e) => handleInputChange('isActive', e.target.checked)}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                  />
-                  <label htmlFor="isActive" className="ml-2 block text-sm text-gray-900">
-                    Active Program
-                  </label>
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'details' && (
-              <div className="space-y-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Program Description
-                  </label>
-                  <textarea
-                    value={formData.programDescription}
-                    onChange={(e) => handleInputChange('programDescription', e.target.value)}
-                    rows={4}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Curriculum Overview
-                  </label>
-                  <textarea
-                    value={formData.curriculumOverview}
-                    onChange={(e) => handleInputChange('curriculumOverview', e.target.value)}
-                    rows={4}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Admission Requirements
-                  </label>
-                  <textarea
-                    value={formData.admissionRequirements}
-                    onChange={(e) => handleInputChange('admissionRequirements', e.target.value)}
-                    rows={4}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Average Entrance Score (%)
-                    </label>
-                    <input
-                      type="number"
-                      value={formData.averageEntranceScore || ''}
-                      onChange={(e) => handleInputChange('averageEntranceScore', e.target.value ? parseFloat(e.target.value) : undefined)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      min="0"
-                      max="100"
-                      step="0.1"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Tuition Fees ($)
-                    </label>
-                    <input
-                      type="number"
-                      value={formData.programTuitionFees || ''}
-                      onChange={(e) => handleInputChange('programTuitionFees', e.target.value ? parseFloat(e.target.value) : undefined)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      min="0"
-                      step="0.01"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Additional Fees ($)
-                    </label>
-                    <input
-                      type="number"
-                      value={formData.programAdditionalFees || ''}
-                      onChange={(e) => handleInputChange('programAdditionalFees', e.target.value ? parseFloat(e.target.value) : undefined)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      min="0"
-                      step="0.01"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Meta Title (SEO)
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.programMetaTitle}
-                    onChange={(e) => handleInputChange('programMetaTitle', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Meta Description (SEO)
-                  </label>
-                  <textarea
-                    value={formData.programMetaDescription}
-                    onChange={(e) => handleInputChange('programMetaDescription', e.target.value)}
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'rankings' && (
-              <div className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-medium text-gray-900">Program Rankings</h3>
-                  <button
-                    type="button"
-                    onClick={addRanking}
-                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
-                  >
-                    <Plus size={16} />
-                    Add Ranking
-                  </button>
-                </div>
-
-                {formData.rankings?.map((ranking, index) => (
-                  <div key={index} className="border border-gray-200 rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-4">
-                      <h4 className="font-medium text-gray-900">Ranking #{index + 1}</h4>
-                      <button
-                        type="button"
-                        onClick={() => removeRanking(index)}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Year
-                        </label>
-                        <input
-                          type="number"
-                          value={ranking.year}
-                          onChange={(e) => updateRanking(index, 'year', parseInt(e.target.value))}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          min="2000"
-                          max="2030"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Rank
-                        </label>
-                        <input
-                          type="number"
-                          value={ranking.rank}
-                          onChange={(e) => updateRanking(index, 'rank', parseInt(e.target.value))}
-                          // continuing from where you stopped...
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          min="1"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Source (Optional)
-                        </label>
-                        <input
-                          type="text"
-                          value={ranking.source || ''}
-                          onChange={(e) => updateRanking(index, 'source', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {activeTab === 'links' && (
-              <div className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-medium text-gray-900">External Links</h3>
-                  <button
-                    type="button"
-                    onClick={addExternalLink}
-                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
-                  >
-                    <Plus size={16} />
-                    Add Link
-                  </button>
-                </div>
-
-                {formData.externalLinks?.map((link, index) => (
-                  <div key={index} className="border border-gray-200 rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-4">
-                      <h4 className="font-medium text-gray-900">Link #{index + 1}</h4>
-                      <button
-                        type="button"
-                        onClick={() => removeExternalLink(index)}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Title
-                        </label>
-                        <input
-                          type="text"
-                          value={link.title}
-                          onChange={(e) => updateExternalLink(index, 'title', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          URL
-                        </label>
-                        <input
-                          type="url"
-                          value={link.url}
-                          onChange={(e) => updateExternalLink(index, 'url', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          required
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="flex justify-end items-center gap-4 px-6 py-4 border-t border-gray-200">
-            <button
-              type="button"
-              onClick={onClose}
-              className="text-gray-600 hover:text-gray-800 px-4 py-2 rounded-md border border-gray-300 hover:bg-gray-100"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className={`flex items-center gap-2 px-5 py-2 rounded-md text-white font-medium ${loading ? 'bg-gray-400' : 'bg-blue-600 hover:bg-blue-700'}`}
-            >
-              <Save size={16} />
-              {loading ? 'Saving...' : 'Save Program'}
-            </button>
-          </div>
-        </form>
-      </div>
+      </form>
     </div>
   );
 };
