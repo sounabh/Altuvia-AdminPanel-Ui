@@ -35,11 +35,12 @@ const navigationItems = [
   { title: 'Programs', url: '/programs', icon: GraduationCap },
   { title: 'Students', url: '/students', icon: Users },
   { title: 'Applications', url: '/applications', icon: FileText },
-  //{ title: 'Scholarships', url: '/scholarships', icon: Award },
   { title: 'Financial', url: '/financial', icon: DollarSign },
+  {title: 'Essays', url: '/essays', icon: FileTextIcon },
  // { title: 'Analytics', url: '/analytics', icon: BarChart3 },
  // { title: 'Settings', url: '/settings', icon: Settings },
- {title: 'Essays', url: '/essays', icon: FileTextIcon },
+ //{ title: 'Scholarships', url: '/scholarships', icon: Award },
+ 
 ];
 
 export function AdminSidebar() {
