@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 'use client';
 
 import React from 'react';
@@ -25,6 +26,7 @@ import {
   Building2,
   Award,
   BarChart3,
+  FileTextIcon,
 } from 'lucide-react';
 
 const navigationItems = [
@@ -33,10 +35,11 @@ const navigationItems = [
   { title: 'Programs', url: '/programs', icon: GraduationCap },
   { title: 'Students', url: '/students', icon: Users },
   { title: 'Applications', url: '/applications', icon: FileText },
-  { title: 'Scholarships', url: '/scholarships', icon: Award },
+  //{ title: 'Scholarships', url: '/scholarships', icon: Award },
   { title: 'Financial', url: '/financial', icon: DollarSign },
-  { title: 'Analytics', url: '/analytics', icon: BarChart3 },
-  { title: 'Settings', url: '/settings', icon: Settings },
+ // { title: 'Analytics', url: '/analytics', icon: BarChart3 },
+ // { title: 'Settings', url: '/settings', icon: Settings },
+ {title: 'Essays', url: '/essays', icon: FileTextIcon },
 ];
 
 export function AdminSidebar() {
