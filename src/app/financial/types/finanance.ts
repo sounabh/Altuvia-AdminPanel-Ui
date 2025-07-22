@@ -1,10 +1,15 @@
-// lib/types/index.ts
+// app/tuition-management/actions/tuition-actions.ts
 
+
+
+
+// Types (move these to a separate types file later)
 export interface University {
   id: string;
   universityName: string;
   createdAt: Date;
   updatedAt: Date;
+  programs?: Program[];
 }
 
 export interface Program {
@@ -13,6 +18,7 @@ export interface Program {
   universityId: string;
   createdAt: Date;
   updatedAt: Date;
+  university?: University;
 }
 
 export interface TuitionBreakdown {
@@ -60,7 +66,7 @@ export interface PaymentSchedule {
   amount: number;
   description: string | null;
   lateFee: number;
-  gracePeroidDays: number;
+  gracePeriodDays: number;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -70,55 +76,55 @@ export interface PaymentSchedule {
 }
 
 // Form Types
-export interface CreateTuitionBreakdownData {
-  universityId: string;
-  programId?: string;
-  academicYear: string;
-  yearNumber: number;
-  baseTuition: number;
-  labFees?: number;
-  libraryFees?: number;
-  technologyFees?: number;
-  activityFees?: number;
-  healthInsurance?: number;
-  dormitoryFees?: number;
-  mealPlanFees?: number;
-  applicationFee?: number;
-  registrationFee?: number;
-  examFees?: number;
-  graduationFee?: number;
-  currency?: string;
-  currencySymbol?: string;
-  paymentTerms?: string;
-  installmentCount?: number;
-  isActive?: boolean;
-  effectiveDate: Date;
-  expiryDate?: Date;
+export interface CreateTuitionBreakdownFormData {
+  universityId: string | null;
+  programId?: string | null;
+  academicYear: string | null;
+  yearNumber: number | null;
+  baseTuition: number | null;
+  labFees?: number | null;
+  libraryFees?: number | null;
+  technologyFees?: number | null;
+  activityFees?: number | null;
+  healthInsurance?: number | null;
+  dormitoryFees?: number | null;
+  mealPlanFees?: number | null;
+  applicationFee?: number  | null;
+  registrationFee?: number | null;
+  examFees?: number | null;
+  graduationFee?: number | null;
+  currency?: string | null;
+  currencySymbol?: string | null;
+  paymentTerms?: string | null;
+  installmentCount?: number | null;
+  isActive?: boolean | null;
+  effectiveDate: Date | null;
+  expiryDate?: Date | null;
 }
 
-export interface UpdateTuitionBreakdownData extends Partial<CreateTuitionBreakdownData> {
+export interface UpdateTuitionBreakdownFormData extends Partial<CreateTuitionBreakdownFormData> {
   id: string;
 }
 
-export interface CreatePaymentScheduleData {
+export interface CreatePaymentScheduleFormData {
   tuitionBreakdownId: string;
   installmentNumber: number;
   dueDate: Date;
   amount: number;
   description?: string;
   lateFee?: number;
-  gracePeroidDays?: number;
+  gracePeriodDays?: number;
   isActive?: boolean;
 }
 
-export interface UpdatePaymentScheduleData extends Partial<CreatePaymentScheduleData> {
+export interface UpdatePaymentScheduleFormData extends Partial<CreatePaymentScheduleFormData> {
   id: string;
 }
 
 // Filter Types
 export interface TuitionBreakdownFilters {
   universityId?: string;
-  programId?: string;
+  programId?: string | null;
   academicYear?: string;
   yearNumber?: number;
   isActive?: boolean;
@@ -173,15 +179,13 @@ export const CURRENCIES = [
   { code: 'INR', symbol: '₹', name: 'Indian Rupee' },
 ] as const;
 
-export const ACADEMIC_YEARS = [
-  '2024-25',
-  '2025-26',
-  '2026-27',
-  '2027-28',
-] as const;
+export const ACADEMIC_YEARS: Record<string, string> = {
+  "2021-2022": "2021–2022",
+  "2022-2023": "2022–2023",
+  "2023-2024": "2023–2024",
+  "2024-2025": "2024–2025",
+};
 
-
-// Constants
 export const PAYMENT_TERMS = [
   'Full Payment',
   'Semester-wise',
@@ -190,5 +194,36 @@ export const PAYMENT_TERMS = [
   'Custom',
 ] as const;
 
-
 export const YEAR_NUMBERS = [1, 2, 3, 4, 5, 6] as const;
+
+
+// Ensure all types are properly defined
+export interface PaginatedResponse<T> {
+  data: T[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  message?: string;
+  error?: string;
+}
+
+export interface University {
+  id: string;
+  universityName: string;
+}
+
+export interface Program {
+  id: string;
+  programName: string;
+  universityId: string;
+}
+
+    

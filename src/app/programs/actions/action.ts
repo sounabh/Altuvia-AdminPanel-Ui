@@ -177,13 +177,25 @@ export async function getProgramById(id: string): Promise<ProgramWithFullRelatio
         tuitionBreakdowns: true,
         scholarships: { where: { isActive: true } },
         feeStructures: true,
-        financialAids: { where: { isActive: true } }
+        financialAids: { where: { isActive: true } },
+        // ✅ Add this:
+        _count: {
+          select: {
+            admissions: true,
+            scholarships: true,
+            tuitionBreakdowns: true,
+            feeStructures: true,
+            financialAids: true,
+            externalLinks: true,
+          }
+        }
       }
     })
   } catch (error) {
     return null
   }
 }
+
 
 // Syllabus Actions
 export async function uploadSyllabus(data: CreateSyllabusInput): Promise<ActionResult<Syllabus>> {

@@ -17,8 +17,7 @@ import {
   TuitionBreakdown,
   University,
   Program,
-  CreateTuitionBreakdownData,
-  UpdateTuitionBreakdownData,
+
   ACADEMIC_YEARS,
   YEAR_NUMBERS,
   CURRENCIES,
@@ -63,18 +62,6 @@ interface FormData {
   expiryDate: string;
 }
 
-interface FormErrors {
-  universityId?: string;
-  programId?: string;
-  academicYear?: string;
-  yearNumber?: string;
-  baseTuition?: string;
-  currency?: string;
-  effectiveDate?: string;
-  installmentCount?: string;
-  general?: string;
-}
-
 const TuitionBreakdownForm: React.FC<TuitionBreakdownFormProps> = ({
   tuitionBreakdown,
   universities,
@@ -108,7 +95,6 @@ const TuitionBreakdownForm: React.FC<TuitionBreakdownFormProps> = ({
     expiryDate: "",
   });
 
-  const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [filteredPrograms, setFilteredPrograms] = useState<Program[]>([]);
   const [calculatedTotals, setCalculatedTotals] = useState({
@@ -225,73 +211,14 @@ const TuitionBreakdownForm: React.FC<TuitionBreakdownFormProps> = ({
     }
   };
 
-  // Validation function
-  const validateForm = (): boolean => {
-    const newErrors: FormErrors = {};
-
-    // Required fields
-    if (!formData.universityId) {
-      newErrors.universityId = "University is required";
-    }
-
-    if (!formData.academicYear) {
-      newErrors.academicYear = "Academic year is required";
-    }
-
-    if (
-      !formData.yearNumber ||
-      formData.yearNumber < 1 ||
-      formData.yearNumber > 8
-    ) {
-      newErrors.yearNumber = "Year number must be between 1 and 8";
-    }
-
-    if (!formData.baseTuition || formData.baseTuition <= 0) {
-      newErrors.baseTuition = "Base tuition must be greater than 0";
-    }
-
-    if (!formData.currency) {
-      newErrors.currency = "Currency is required";
-    }
-
-    if (!formData.effectiveDate) {
-      newErrors.effectiveDate = "Effective date is required";
-    }
-
-    if (formData.installmentCount < 1 || formData.installmentCount > 12) {
-      newErrors.installmentCount = "Installment count must be between 1 and 12";
-    }
-
-    // Date validation
-    if (formData.effectiveDate && formData.expiryDate) {
-      const effectiveDate = new Date(formData.effectiveDate);
-      const expiryDate = new Date(formData.expiryDate);
-
-      if (expiryDate <= effectiveDate) {
-        newErrors.general = "Expiry date must be after effective date";
-      }
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!validateForm()) {
-      toast.error("Please fix the validation errors");
-      return;
-    }
-
     setIsSubmitting(true);
-    setErrors({});
 
     try {
-      const submitData:
-        | CreateTuitionBreakdownData
-        | UpdateTuitionBreakdownData = {
+      const submitData
+       = {
         universityId: formData.universityId,
         programId: formData.programId || undefined,
         academicYear: formData.academicYear,
@@ -324,10 +251,10 @@ const TuitionBreakdownForm: React.FC<TuitionBreakdownFormProps> = ({
         result = await updateTuitionBreakdown({
           ...submitData,
           id: tuitionBreakdown.id,
-        } as UpdateTuitionBreakdownData);
+        });
       } else {
         result = await createTuitionBreakdown(
-          submitData as CreateTuitionBreakdownData
+          submitData 
         );
       }
 
@@ -336,13 +263,11 @@ const TuitionBreakdownForm: React.FC<TuitionBreakdownFormProps> = ({
         onSuccess();
       } else {
         toast.error(result.error || "Operation failed");
-        setErrors({ general: result.error });
       }
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "An unexpected error occurred";
       toast.error(errorMessage);
-      setErrors({ general: errorMessage });
     } finally {
       setIsSubmitting(false);
     }
@@ -354,11 +279,6 @@ const TuitionBreakdownForm: React.FC<TuitionBreakdownFormProps> = ({
     value: string | number | boolean
   ) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
-
-    // Clear related error when user starts typing
-    if (errors[field as keyof FormErrors]) {
-      setErrors((prev) => ({ ...prev, [field]: undefined }));
-    }
   };
 
   // Format currency for display
@@ -385,28 +305,19 @@ const TuitionBreakdownForm: React.FC<TuitionBreakdownFormProps> = ({
       </div>
 
       <form onSubmit={handleSubmit} className="p-6 space-y-6">
-        {/* General Error */}
-        {errors.general && (
-          <div className="bg-red-50 border border-red-200 rounded-md p-4">
-            <p className="text-sm text-red-600">{errors.general}</p>
-          </div>
-        )}
-
         {/* Basic Information */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               <Building className="w-4 h-4 inline mr-1" />
-              University *
+              University
             </label>
             <select
               value={formData.universityId}
               onChange={(e) =>
                 handleInputChange("universityId", e.target.value)
               }
-              className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                errors.universityId ? "border-red-300" : "border-gray-300"
-              }`}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               disabled={isSubmitting}
             >
               <option value="">Select University</option>
@@ -416,9 +327,6 @@ const TuitionBreakdownForm: React.FC<TuitionBreakdownFormProps> = ({
                 </option>
               ))}
             </select>
-            {errors.universityId && (
-              <p className="mt-1 text-sm text-red-600">{errors.universityId}</p>
-            )}
           </div>
 
           <div>
@@ -446,42 +354,33 @@ const TuitionBreakdownForm: React.FC<TuitionBreakdownFormProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Academic Year *
+              Academic Year
             </label>
             <select
               value={formData.academicYear}
               onChange={(e) =>
                 handleInputChange("academicYear", e.target.value)
               }
-              className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                errors.academicYear ? "border-red-300" : "border-gray-300"
-              }`}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               disabled={isSubmitting}
             >
               <option value="">Select Academic Year</option>
-              {ACADEMIC_YEARS.map((year) => (
-                <option key={year} value={year}>
-                  {year}
-                </option>
-              ))}
+              {Object.keys(ACADEMIC_YEARS).map((year) => (
+               <option key={year} value={year}>{ACADEMIC_YEARS[year]}</option>
+             ))}
             </select>
-            {errors.academicYear && (
-              <p className="mt-1 text-sm text-red-600">{errors.academicYear}</p>
-            )}
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Year Number *
+              Year Number
             </label>
             <select
               value={formData.yearNumber}
               onChange={(e) =>
                 handleInputChange("yearNumber", parseInt(e.target.value))
               }
-              className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                errors.yearNumber ? "border-red-300" : "border-gray-300"
-              }`}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               disabled={isSubmitting}
             >
               {YEAR_NUMBERS.map((year) => (
@@ -490,21 +389,16 @@ const TuitionBreakdownForm: React.FC<TuitionBreakdownFormProps> = ({
                 </option>
               ))}
             </select>
-            {errors.yearNumber && (
-              <p className="mt-1 text-sm text-red-600">{errors.yearNumber}</p>
-            )}
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Currency *
+              Currency
             </label>
             <select
               value={formData.currency}
               onChange={(e) => handleCurrencyChange(e.target.value)}
-              className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                errors.currency ? "border-red-300" : "border-gray-300"
-              }`}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               disabled={isSubmitting}
             >
               {CURRENCIES.map((currency) => (
@@ -513,9 +407,6 @@ const TuitionBreakdownForm: React.FC<TuitionBreakdownFormProps> = ({
                 </option>
               ))}
             </select>
-            {errors.currency && (
-              <p className="mt-1 text-sm text-red-600">{errors.currency}</p>
-            )}
           </div>
         </div>
 
@@ -529,7 +420,7 @@ const TuitionBreakdownForm: React.FC<TuitionBreakdownFormProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Base Tuition *
+                Base Tuition
               </label>
               <input
                 type="number"
@@ -542,16 +433,9 @@ const TuitionBreakdownForm: React.FC<TuitionBreakdownFormProps> = ({
                     parseFloat(e.target.value) || 0
                   )
                 }
-                className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                  errors.baseTuition ? "border-red-300" : "border-gray-300"
-                }`}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 disabled={isSubmitting}
               />
-              {errors.baseTuition && (
-                <p className="mt-1 text-sm text-red-600">
-                  {errors.baseTuition}
-                </p>
-              )}
             </div>
 
             <div>
@@ -823,7 +707,7 @@ const TuitionBreakdownForm: React.FC<TuitionBreakdownFormProps> = ({
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Installment Count *
+              Installment Count
             </label>
             <input
               type="number"
@@ -836,16 +720,9 @@ const TuitionBreakdownForm: React.FC<TuitionBreakdownFormProps> = ({
                   parseInt(e.target.value) || 1
                 )
               }
-              className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                errors.installmentCount ? "border-red-300" : "border-gray-300"
-              }`}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               disabled={isSubmitting}
             />
-            {errors.installmentCount && (
-              <p className="mt-1 text-sm text-red-600">
-                {errors.installmentCount}
-              </p>
-            )}
           </div>
         </div>
 
@@ -854,7 +731,7 @@ const TuitionBreakdownForm: React.FC<TuitionBreakdownFormProps> = ({
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               <Calendar className="w-4 h-4 inline mr-1" />
-              Effective Date *
+              Effective Date
             </label>
             <input
               type="date"
@@ -862,16 +739,9 @@ const TuitionBreakdownForm: React.FC<TuitionBreakdownFormProps> = ({
               onChange={(e) =>
                 handleInputChange("effectiveDate", e.target.value)
               }
-              className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                errors.effectiveDate ? "border-red-300" : ""
-              }`}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               disabled={isSubmitting}
             />
-            {errors.effectiveDate && (
-              <p className="mt-1 text-sm text-red-600">
-                {errors.effectiveDate}
-              </p>
-            )}
           </div>
 
           <div>

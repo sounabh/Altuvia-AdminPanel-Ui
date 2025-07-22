@@ -36,29 +36,40 @@ const ProgramForm: React.FC<ProgramFormProps> = ({
     dept => dept.universityId === selectedUniversity
   );
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const formData = new FormData(e.target as HTMLFormElement);
-    const data: CreateProgramInput = {
-      universityId: formData.get('universityId') as string,
-      departmentId: formData.get('departmentId') as string,
-      programName: formData.get('programName') as string,
-      programSlug: formData.get('programSlug') as string,
-      degreeType: formData.get('degreeType') as string || undefined,
-      programLength: parseInt(formData.get('programLength') as string) || undefined,
-      specializations: formData.get('specializations') as string || undefined,
-      programDescription: formData.get('programDescription') as string || undefined,
-      curriculumOverview: formData.get('curriculumOverview') as string || undefined,
-      admissionRequirements: formData.get('admissionRequirements') as string || undefined,
-      averageEntranceScore: parseInt(formData.get('averageEntranceScore') as string) || undefined,
-      programTuitionFees: parseInt(formData.get('programTuitionFees') as string) || undefined,
-      programAdditionalFees: parseInt(formData.get('programAdditionalFees') as string) || undefined,
-      programMetaTitle: formData.get('programMetaTitle') as string || undefined,
-      programMetaDescription: formData.get('programMetaDescription') as string || undefined,
-      isActive: formData.get('isActive') === 'on'
-    };
-    onSubmit(data);
+ const handleSubmit = (e: React.FormEvent) => {
+  e.preventDefault();
+  const formData = new FormData(e.target as HTMLFormElement);
+
+  const baseData = {
+    universityId: formData.get('universityId') as string,
+    departmentId: formData.get('departmentId') as string,
+    programName: formData.get('programName') as string,
+    programSlug: formData.get('programSlug') as string,
+    degreeType: formData.get('degreeType') as string || undefined,
+    programLength: parseInt(formData.get('programLength') as string) || undefined,
+    specializations: formData.get('specializations') as string || undefined,
+    programDescription: formData.get('programDescription') as string || undefined,
+    curriculumOverview: formData.get('curriculumOverview') as string || undefined,
+    admissionRequirements: formData.get('admissionRequirements') as string || undefined,
+    averageEntranceScore: parseInt(formData.get('averageEntranceScore') as string) || undefined,
+    programTuitionFees: parseInt(formData.get('programTuitionFees') as string) || undefined,
+    programAdditionalFees: parseInt(formData.get('programAdditionalFees') as string) || undefined,
+    programMetaTitle: formData.get('programMetaTitle') as string || undefined,
+    programMetaDescription: formData.get('programMetaDescription') as string || undefined,
+    isActive: formData.get('isActive') === 'on'
   };
+
+  if (isEditing && program?.id) {
+    const updateData: UpdateProgramInput = {
+      id: program.id,
+      ...baseData
+    };
+    onSubmit(updateData);
+  } else {
+    const createData: CreateProgramInput = baseData;
+    onSubmit(createData);
+  }
+};
 
   return (
     <div className="p-6">

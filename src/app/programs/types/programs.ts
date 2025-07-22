@@ -65,6 +65,7 @@ export interface CreateDepartmentInput {
 }
 
 export interface UpdateDepartmentInput {
+  id: string;
   name?: string;
   slug?: string;
 }
@@ -88,9 +89,12 @@ export interface CreateProgramInput {
   isActive?: boolean;
 }
 
-export interface UpdateProgramInput {
-  programName?: string;
-  programSlug?: string;
+export type UpdateProgramInput = {
+  id: string;
+  universityId: string;
+  departmentId: string;
+  programName: string;
+  programSlug: string;
   degreeType?: string;
   programLength?: number;
   specializations?: string;
@@ -102,8 +106,8 @@ export interface UpdateProgramInput {
   programAdditionalFees?: number;
   programMetaTitle?: string;
   programMetaDescription?: string;
-  isActive?: boolean;
-}
+  isActive: boolean;
+};
 
 export interface CreateSyllabusInput {
   programId: string;

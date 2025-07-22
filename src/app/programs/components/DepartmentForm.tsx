@@ -24,16 +24,36 @@ const DepartmentForm: React.FC<DepartmentFormProps> = ({
 }) => {
   const isEditing = !!department;
   
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const formData = new FormData(e.target as HTMLFormElement);
-    const data = {
-      universityId: formData.get('universityId') as string,
-      name: formData.get('name') as string,
-      slug: formData.get('slug') as string
-    };
-    onSubmit(data);
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  e.preventDefault();
+
+  // Extract form data
+  const formData = new FormData(e.currentTarget);
+
+  // Build the common payload
+  const baseData = {
+    universityId: formData.get('universityId') as string,
+    name: formData.get('name') as string,
+    slug: formData.get('slug') as string,
   };
+
+  // If editing, include the department ID for update
+  if (isEditing && department?.id) {
+    const updateData: UpdateDepartmentInput = {
+      id: department.id,
+      ...baseData,
+    };
+
+    onSubmit(updateData);
+  } else {
+    const createData: CreateDepartmentInput = {
+      ...baseData,
+    };
+
+    onSubmit(createData);
+  }
+};
+
 
   return (
     <div className="p-6">

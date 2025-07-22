@@ -1,46 +1,33 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 // app/tuition-management/page.tsx
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Filter, Download, Upload, Eye, Edit, Trash2 } from 'lucide-react';
+import { Plus, Search, Filter, Download, Upload, Eye, Edit, Trash2, DollarSign } from 'lucide-react';
 import { toast } from 'sonner';
 import TuitionBreakdownForm from './components/TutionBreakdown';
+import { 
+  getTuitionBreakdowns, 
+  deleteTuitionBreakdown,
+  getTuitionAnalytics,
+  getUniversities,
+  getProgramsByUniversity
+} from './action/action';
 import { 
   TuitionBreakdown, 
   University, 
   Program, 
   TuitionBreakdownFilters,
-  PaginatedResponse,
+  TuitionAnalytics,
   ACADEMIC_YEARS,
-  YEAR_NUMBERS 
+  YEAR_NUMBERS,
 } from './types/finanance';
-import { 
-  getTuitionBreakdowns, 
-  deleteTuitionBreakdown,
-  getTuitionAnalytics 
-} from './action/action';
-
-// Mock data for universities and programs
-const mockUniversities: University[] = [
-  { id: '1', universityName: 'Stanford University', createdAt: new Date(), updatedAt: new Date() },
-  { id: '2', universityName: 'MIT', createdAt: new Date(), updatedAt: new Date() },
-  { id: '3', universityName: 'Harvard University', createdAt: new Date(), updatedAt: new Date() },
-  { id: '4', universityName: 'UC Berkeley', createdAt: new Date(), updatedAt: new Date() },
-];
-
-const mockPrograms: Program[] = [
-  { id: '1', programName: 'Computer Science', universityId: '1', createdAt: new Date(), updatedAt: new Date() },
-  { id: '2', programName: 'Business Administration', universityId: '1', createdAt: new Date(), updatedAt: new Date() },
-  { id: '3', programName: 'Engineering', universityId: '2', createdAt: new Date(), updatedAt: new Date() },
-  { id: '4', programName: 'Medicine', universityId: '3', createdAt: new Date(), updatedAt: new Date() },
-  { id: '5', programName: 'Law', universityId: '4', createdAt: new Date(), updatedAt: new Date() },
-];
 
 const TuitionManagementPage = () => {
   const [tuitionBreakdowns, setTuitionBreakdowns] = useState<TuitionBreakdown[]>([]);
-  const [universities] = useState<University[]>(mockUniversities);
-  const [programs] = useState<Program[]>(mockPrograms);
+  const [universities, setUniversities] = useState<University[]>([]);
+  const [programs, setPrograms] = useState<Program[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingItem, setEditingItem] = useState<TuitionBreakdown | null>(null);
@@ -51,45 +38,63 @@ const TuitionManagementPage = () => {
     total: 0,
     totalPages: 0,
   });
-  const [analytics, setAnalytics] = useState({
+  const [analytics, setAnalytics] = useState<TuitionAnalytics>({
     totalTuitionBreakdowns: 0,
-    activeTuitionBreakdowns: 0,
+    totalPaymentSchedules: 0,
+    averageBaseTuition: 0,
     averageGrandTotal: 0,
     totalOutstandingAmount: 0,
+    activeTuitionBreakdowns: 0,
+    upcomingPayments: 0,
+    overduePayments: 0,
   });
 
-  // Fetch tuition breakdowns
-  const fetchTuitionBreakdowns = async () => {
-    setIsLoading(true);
-    try {
-      const result = await getTuitionBreakdowns(filters, pagination.page, pagination.limit);
-      setTuitionBreakdowns(result.data);
-      setPagination(prev => ({
-        ...prev,
-        total: result.pagination.total,
-        totalPages: result.pagination.totalPages,
-      }));
-    } catch (error) {
-      toast.error('Failed to fetch tuition breakdowns');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Fetch analytics
-  const fetchAnalytics = async () => {
-    try {
-      const result = await getTuitionAnalytics();
-      setAnalytics(result);
-    } catch (error) {
-      console.error('Failed to fetch analytics:', error);
-    }
-  };
-
+  // Fetch initial data
   useEffect(() => {
-    fetchTuitionBreakdowns();
-    fetchAnalytics();
-  }, [filters, pagination.page]);
+    const fetchInitialData = async () => {
+      try {
+        setIsLoading(true);
+        const [unis, breakdowns, analyticsData] = await Promise.all([
+          getUniversities(),
+          getTuitionBreakdowns(filters, pagination.page, pagination.limit),
+          getTuitionAnalytics()
+        ]);
+        
+        setUniversities(unis);
+        setTuitionBreakdowns(breakdowns.data);
+        setPagination({
+          ...pagination,
+          total: breakdowns.pagination.total,
+          totalPages: breakdowns.pagination.totalPages,
+        });
+        setAnalytics(analyticsData);
+      } catch (error: any) {
+        toast.error('Failed to fetch initial data: ' + error.message);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchInitialData();
+  }, [filters, pagination.page, pagination.limit]);
+
+  // Fetch programs when university filter changes
+  useEffect(() => {
+    if (filters.universityId) {
+      const fetchPrograms = async () => {
+        try {
+          const programs = await getProgramsByUniversity(filters.universityId || '');
+          setPrograms(programs);
+        } catch (error: any) {
+          toast.error('Failed to fetch programs: ' + error.message);
+        }
+      };
+      fetchPrograms();
+    } else {
+      setPrograms([]);
+      setFilters(prev => ({ ...prev, programId: undefined }));
+    }
+  }, [filters.universityId]);
 
   const handleCreate = () => {
     setEditingItem(null);
@@ -107,13 +112,23 @@ const TuitionManagementPage = () => {
         const result = await deleteTuitionBreakdown(id);
         if (result.success) {
           toast.success('Tuition breakdown deleted successfully');
-          fetchTuitionBreakdowns();
-          fetchAnalytics();
+          // Refresh data
+          const [breakdowns, analyticsData] = await Promise.all([
+            getTuitionBreakdowns(filters, pagination.page, pagination.limit),
+            getTuitionAnalytics()
+          ]);
+          setTuitionBreakdowns(breakdowns.data);
+          setPagination({
+            ...pagination,
+            total: breakdowns.pagination.total,
+            totalPages: breakdowns.pagination.totalPages,
+          });
+          setAnalytics(analyticsData);
         } else {
           toast.error(result.error || 'Failed to delete tuition breakdown');
         }
-      } catch (error) {
-        toast.error('Failed to delete tuition breakdown');
+      } catch (error: any) {
+        toast.error('Failed to delete tuition breakdown: ' + error.message);
       }
     }
   };
@@ -121,8 +136,17 @@ const TuitionManagementPage = () => {
   const handleFormSuccess = () => {
     setShowForm(false);
     setEditingItem(null);
-    fetchTuitionBreakdowns();
-    fetchAnalytics();
+    // Refresh data
+    getTuitionBreakdowns(filters, pagination.page, pagination.limit)
+      .then(breakdowns => {
+        setTuitionBreakdowns(breakdowns.data);
+        setPagination({
+          ...pagination,
+          total: breakdowns.pagination.total,
+          totalPages: breakdowns.pagination.totalPages,
+        });
+      });
+    getTuitionAnalytics().then(setAnalytics);
   };
 
   const handleSearch = (searchTerm: string) => {
@@ -130,17 +154,12 @@ const TuitionManagementPage = () => {
     setPagination(prev => ({ ...prev, page: 1 }));
   };
 
+  const handlePageChange = (newPage: number) => {
+    setPagination(prev => ({ ...prev, page: newPage }));
+  };
+
   const formatCurrency = (amount: number, symbol: string = '$') => {
-    return `${symbol}${amount.toLocaleString()}`;
-  };
-
-  const getUniversityName = (universityId: string) => {
-    return universities.find(u => u.id === universityId)?.universityName || 'Unknown';
-  };
-
-  const getProgramName = (programId: string | null) => {
-    if (!programId) return 'General';
-    return programs.find(p => p.id === programId)?.programName || 'Unknown';
+    return `${symbol}${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
   if (showForm) {
@@ -215,7 +234,9 @@ const TuitionManagementPage = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Average Total</p>
-                <p className="text-2xl font-bold text-gray-900">{formatCurrency(analytics.averageGrandTotal)}</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {formatCurrency(analytics.averageGrandTotal)}
+                </p>
               </div>
               <div className="bg-yellow-100 p-3 rounded-full">
                 <Download className="w-6 h-6 text-yellow-600" />
@@ -225,11 +246,13 @@ const TuitionManagementPage = () => {
           <div className="bg-white rounded-lg p-6 shadow-sm border">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Outstanding Amount</p>
-                <p className="text-2xl font-bold text-gray-900">{formatCurrency(analytics.totalOutstandingAmount)}</p>
+                <p className="text-sm text-gray-600">Total Tuition Amount</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {formatCurrency(analytics.totalOutstandingAmount)}
+                </p>
               </div>
-              <div className="bg-red-100 p-3 rounded-full">
-                <Upload className="w-6 h-6 text-red-600" />
+              <div className="bg-green-100 p-3 rounded-full">
+                <DollarSign className="w-6 h-6 text-green-600" />
               </div>
             </div>
           </div>
@@ -264,6 +287,23 @@ const TuitionManagementPage = () => {
               </select>
             </div>
             <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Program</label>
+              <select
+                value={filters.programId || ''}
+                onChange={(e) => setFilters(prev => ({ 
+                  ...prev, 
+                  programId: e.target.value || undefined 
+                }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                disabled={!filters.universityId}
+              >
+                <option value="">All Programs</option>
+                {programs.map(program => (
+                  <option key={program.id} value={program.id}>{program.programName}</option>
+                ))}
+              </select>
+            </div>
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Academic Year</label>
               <select
                 value={filters.academicYear || ''}
@@ -271,152 +311,201 @@ const TuitionManagementPage = () => {
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="">All Years</option>
-                {ACADEMIC_YEARS.map(year => (
-                  <option key={year} value={year}>{year}</option>
-                ))}
+                {Object.keys(ACADEMIC_YEARS).map((year) => (
+  <option key={year} value={year}>{ACADEMIC_YEARS[year]}</option>
+))}
+
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Year Number</label>
+              <select
+                value={filters.yearNumber !== undefined ? filters.yearNumber : ''}
+                onChange={(e) => setFilters(prev => ({ 
+                  ...prev, 
+                  yearNumber: e.target.value ? Number(e.target.value) : undefined 
+                }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">All Years</option>
+               {Object.entries(YEAR_NUMBERS).map(([key, label]) => (
+  <option key={key} value={key}>Year {label}</option>
+))}
               </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
               <select
-                value={filters.isActive === undefined ? '' : filters.isActive ? 'active' : 'inactive'}
+                value={filters.isActive !== undefined ? String(filters.isActive) : ''}
                 onChange={(e) => setFilters(prev => ({ 
                   ...prev, 
-                  isActive: e.target.value === '' ? undefined : e.target.value === 'active' 
+                  isActive: e.target.value === '' ? undefined : e.target.value === 'true' 
                 }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
-                <option value="">All Status</option>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
+                <option value="">All Statuses</option>
+                <option value="true">Active</option>
+                <option value="false">Inactive</option>
               </select>
             </div>
           </div>
         </div>
 
-        {/* Data Table */}
-        <div className="bg-white rounded-lg shadow-sm border">
+        {/* Tuition Breakdowns Table */}
+        <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    University & Program
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Academic Year
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Year Number
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Base Tuition
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Grand Total
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">University</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Program</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Academic Year</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Year</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Base Tuition</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Fees</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Grand Total</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {tuitionBreakdowns.map((breakdown) => (
-                  <tr key={breakdown.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">
-                          {getUniversityName(breakdown.universityId)}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {getProgramName(breakdown.programId)}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {breakdown.academicYear}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      Year {breakdown.yearNumber}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {formatCurrency(breakdown.baseTuition, breakdown.currencySymbol)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {formatCurrency(breakdown.grandTotal, breakdown.currencySymbol)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                        breakdown.isActive 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-red-100 text-red-800'
-                      }`}>
-                        {breakdown.isActive ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <div className="flex space-x-2">
-                        <button
-                          onClick={() => handleEdit(breakdown)}
-                          className="text-blue-600 hover:text-blue-900"
-                        >
-                          <Edit className="w-5 h-5" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(breakdown.id)}
-                          className="text-red-600 hover:text-red-900"
-                        >
-                          <Trash2 className="w-5 h-5" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {tuitionBreakdowns.length === 0 && !isLoading && (
+                {isLoading ? (
                   <tr>
-                    <td colSpan={7} className="px-6 py-4 text-center text-sm text-gray-500">
-                      No tuition breakdowns found
-                    </td>
-                  </tr>
-                )}
-                {isLoading && (
-                  <tr>
-                    <td colSpan={7} className="px-6 py-4 text-center text-sm text-gray-500">
+                    <td colSpan={9} className="px-6 py-4 text-center text-sm text-gray-500">
                       Loading...
                     </td>
                   </tr>
+                ) : tuitionBreakdowns.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} className="px-6 py-4 text-center text-sm text-gray-500">
+                      No tuition breakdowns found
+                    </td>
+                  </tr>
+                ) : (
+                  tuitionBreakdowns.map((breakdown) => (
+                    <tr key={breakdown.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {breakdown.university?.universityName || 'Unknown'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {breakdown.program?.programName || 'General'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {breakdown.academicYear}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        Year {breakdown.yearNumber}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {formatCurrency(breakdown.baseTuition, breakdown.currencySymbol)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {formatCurrency(breakdown.totalAdditionalFees, breakdown.currencySymbol)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {formatCurrency(breakdown.grandTotal, breakdown.currencySymbol)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                          breakdown.isActive 
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {breakdown.isActive ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div className="flex justify-end space-x-2">
+                          <button
+                            onClick={() => handleEdit(breakdown)}
+                            className="text-blue-600 hover:text-blue-900"
+                          >
+                            <Edit className="w-5 h-5" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(breakdown.id)}
+                            className="text-red-600 hover:text-red-900"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
                 )}
               </tbody>
             </table>
           </div>
 
           {/* Pagination */}
-          <div className="px-6 py-4 bg-gray-50 border-t flex items-center justify-between">
-            <div className="text-sm text-gray-700">
-              Showing <span className="font-medium">{(pagination.page - 1) * pagination.limit + 1}</span> to{' '}
-              <span className="font-medium">{Math.min(pagination.page * pagination.limit, pagination.total)}</span> of{' '}
-              <span className="font-medium">{pagination.total}</span> results
+          {pagination.totalPages > 1 && (
+            <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
+              <div className="flex-1 flex justify-between sm:hidden">
+                <button
+                  onClick={() => handlePageChange(pagination.page - 1)}
+                  disabled={pagination.page === 1}
+                  className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() => handlePageChange(pagination.page + 1)}
+                  disabled={pagination.page === pagination.totalPages}
+                  className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Next
+                </button>
+              </div>
+              <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm text-gray-700">
+                    Showing <span className="font-medium">{(pagination.page - 1) * pagination.limit + 1}</span> to{' '}
+                    <span className="font-medium">
+                      {Math.min(pagination.page * pagination.limit, pagination.total)}
+                    </span>{' '}
+                    of <span className="font-medium">{pagination.total}</span> results
+                  </p>
+                </div>
+                <div>
+                  <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                    <button
+                      onClick={() => handlePageChange(pagination.page - 1)}
+                      disabled={pagination.page === 1}
+                      className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      <span className="sr-only">Previous</span>
+                      <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                    {Array.from({ length: pagination.totalPages }, (_, i) => i + 1).map((pageNum) => (
+                      <button
+                        key={pageNum}
+                        onClick={() => handlePageChange(pageNum)}
+                        className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
+                          pagination.page === pageNum
+                            ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
+                            : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => handlePageChange(pagination.page + 1)}
+                      disabled={pagination.page === pagination.totalPages}
+                      className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      <span className="sr-only">Next</span>
+                      <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  </nav>
+                </div>
+              </div>
             </div>
-            <div className="flex space-x-2">
-              <button
-                onClick={() => setPagination(prev => ({ ...prev, page: Math.max(1, prev.page - 1) }))}
-                disabled={pagination.page === 1}
-                className="px-3 py-1 border border-gray-300 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-              >
-                Previous
-              </button>
-              <button
-                onClick={() => setPagination(prev => ({ ...prev, page: Math.min(pagination.totalPages, prev.page + 1) }))}
-                disabled={pagination.page === pagination.totalPages}
-                className="px-3 py-1 border border-gray-300 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-              >
-                Next
-              </button>
-            </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

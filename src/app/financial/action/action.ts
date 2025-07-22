@@ -1,173 +1,277 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-// lib/actions/tuition-actions.ts
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// app/tuition-management/action/action.ts
 'use server';
 
-import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
+import { prisma } from '@/lib/prisma';
 import { 
-  CreateTuitionBreakdownData, 
-  UpdateTuitionBreakdownData,
-  CreatePaymentScheduleData,
-  UpdatePaymentScheduleData,
+  TuitionBreakdown, 
+  CreateTuitionBreakdownFormData, 
+  UpdateTuitionBreakdownFormData,
   TuitionBreakdownFilters,
-  PaymentScheduleFilters,
-  ApiResponse,
   PaginatedResponse,
-  TuitionBreakdown,
-  PaymentSchedule,
-  TuitionAnalytics
-} from './../types/finanance';
+  ApiResponse,
+  TuitionAnalytics,
+  University,
+  Program
+} from '../types/finanance';
 
-// In a real app, you would use a database like Prisma
-// For now, we'll simulate with in-memory storage
-let tuitionBreakdowns: TuitionBreakdown[] = [];
-let paymentSchedules: PaymentSchedule[] = [];
+// Helper function to convert null fee fields to 0
+const convertNullFeesToZero = (data: any) => ({
+  ...data,
+  labFees: data.labFees ?? 0,
+  libraryFees: data.libraryFees ?? 0,
+  technologyFees: data.technologyFees ?? 0,
+  activityFees: data.activityFees ?? 0,
+  healthInsurance: data.healthInsurance ?? 0,
+  dormitoryFees: data.dormitoryFees ?? 0,
+  mealPlanFees: data.mealPlanFees ?? 0,
+  applicationFee: data.applicationFee ?? 0,
+  registrationFee: data.registrationFee ?? 0,
+  examFees: data.examFees ?? 0,
+  graduationFee: data.graduationFee ?? 0
+});
 
-// Utility functions
-const calculateTuitionTotals = (data: CreateTuitionBreakdownData | UpdateTuitionBreakdownData) => {
-  const additionalFees = [
-    data.labFees || 0,
-    data.libraryFees || 0,
-    data.technologyFees || 0,
-    data.activityFees || 0,
-    data.healthInsurance || 0,
-    data.dormitoryFees || 0,
-    data.mealPlanFees || 0,
-    data.applicationFee || 0,
-    data.registrationFee || 0,
-    data.examFees || 0,
-    data.graduationFee || 0,
-  ].reduce((sum, fee) => sum + fee, 0);
 
-  const totalTuition = data.baseTuition || 0;
+
+
+interface TuitionTotalsInput {
+  baseTuition: number;
+  labFees?: number | null;
+  libraryFees?: number | null;
+  technologyFees?: number | null;
+  activityFees?: number | null;
+  healthInsurance?: number | null;
+  dormitoryFees?: number | null;
+  mealPlanFees?: number | null;
+  applicationFee?: number | null;
+  registrationFee?: number | null;
+  examFees?: number | null;
+  graduationFee?: number | null;
+}
+
+
+// Helper function to calculate totals
+const calculateTuitionTotals = (data: TuitionTotalsInput) => {
+  const safeData = convertNullFeesToZero(data);
+  
+  const additionalFees = 
+    safeData.labFees +
+    safeData.libraryFees +
+    safeData.technologyFees +
+    safeData.activityFees +
+    safeData.healthInsurance +
+    safeData.dormitoryFees +
+    safeData.mealPlanFees +
+    safeData.applicationFee +
+    safeData.registrationFee +
+    safeData.examFees +
+    safeData.graduationFee;
+
+  const totalTuition = safeData.baseTuition;
   const grandTotal = totalTuition + additionalFees;
 
   return {
-    totalTuition,
     totalAdditionalFees: additionalFees,
-    grandTotal,
+    totalTuition,
+    grandTotal
   };
 };
 
-const generateId = () => `id_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+// University Actions
+export async function getUniversities(): Promise<University[]> {
+  try {
+    return await prisma.university.findMany({
+      include: { programs: true }
+    });
+  } catch (error: any) {
+    throw new Error('Failed to fetch universities: ' + error.message);
+  }
+}
+
+// Program Actions
+export async function getProgramsByUniversity(universityId: string): Promise<Program[]> {
+  try {
+    return await prisma.program.findMany({
+      where: { universityId },
+      include: { university: true }
+    });
+  } catch (error: any) {
+    throw new Error('Failed to fetch programs: ' + error.message);
+  }
+}
 
 // Tuition Breakdown Actions
 export async function createTuitionBreakdown(
-  data: CreateTuitionBreakdownData
+  data: CreateTuitionBreakdownFormData
 ): Promise<ApiResponse<TuitionBreakdown>> {
   try {
-    const totals = calculateTuitionTotals(data);
-    
-    const newTuitionBreakdown: TuitionBreakdown = {
-      id: generateId(),
-      universityId: data.universityId,
-      programId: data.programId || null,
-      academicYear: data.academicYear,
-      yearNumber: data.yearNumber,
-      baseTuition: data.baseTuition,
-      labFees: data.labFees || 0,
-      libraryFees: data.libraryFees || 0,
-      technologyFees: data.technologyFees || 0,
-      activityFees: data.activityFees || 0,
-      healthInsurance: data.healthInsurance || 0,
-      dormitoryFees: data.dormitoryFees || 0,
-      mealPlanFees: data.mealPlanFees || 0,
-      applicationFee: data.applicationFee || 0,
-      registrationFee: data.registrationFee || 0,
-      examFees: data.examFees || 0,
-      graduationFee: data.graduationFee || 0,
-      ...totals,
-      currency: data.currency || 'USD',
-      currencySymbol: data.currencySymbol || '$',
-      paymentTerms: data.paymentTerms || null,
-      installmentCount: data.installmentCount || 1,
-      isActive: data.isActive ?? true,
-      effectiveDate: data.effectiveDate,
-      expiryDate: data.expiryDate || null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+    // Validate university exists
+    const university = await prisma.university.findUnique({
+      where: { id: data.universityId || '' }
+    });
 
-    tuitionBreakdowns.push(newTuitionBreakdown);
-    revalidatePath('/tuition-breakdowns');
-    
+    if (!university) {
+      return { success: false, error: 'University not found' };
+    }
+
+    // Validate program exists if provided
+    if (data.programId) {
+      const program = await prisma.program.findUnique({
+        where: { id: data.programId }
+      });
+
+      if (!program || program.universityId !== data.universityId) {
+        return { success: false, error: 'Program not found or does not belong to the university' };
+      }
+    }
+
+    const { totalAdditionalFees, totalTuition, grandTotal } = calculateTuitionTotals(data as TuitionTotalsInput);
+
+    const tuitionBreakdown = await prisma.tuitionBreakdown.create({
+      data: {
+        universityId: data.universityId || '',
+        programId: data.programId || null,
+        academicYear: data.academicYear || '',
+        yearNumber: data.yearNumber  || 1,
+        baseTuition: data.baseTuition || 0,
+        labFees: data.labFees || 0,
+        libraryFees: data.libraryFees || 0,
+        technologyFees: data.technologyFees || 0,
+        activityFees: data.activityFees || 0,
+        healthInsurance: data.healthInsurance || 0,
+        dormitoryFees: data.dormitoryFees || 0,
+        mealPlanFees: data.mealPlanFees || 0,
+        applicationFee: data.applicationFee || 0,
+        registrationFee: data.registrationFee || 0,
+        examFees: data.examFees || 0,
+        graduationFee: data.graduationFee || 0,
+        totalTuition,
+        totalAdditionalFees,
+        grandTotal,
+        currency: data.currency || 'USD',
+        currencySymbol: data.currencySymbol || '$',
+        paymentTerms: data.paymentTerms || null,
+        installmentCount: data.installmentCount || 1,
+        isActive: data.isActive ?? true,
+        effectiveDate: data.effectiveDate || new Date(),
+        expiryDate: data.expiryDate || null,
+      },
+      include: {
+        university: true,
+        program: true,
+      }
+    });
+
     return {
       success: true,
-      data: newTuitionBreakdown,
-      message: 'Tuition breakdown created successfully',
+      data: convertNullFeesToZero(tuitionBreakdown),
+      message: 'Tuition breakdown created successfully'
     };
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to create tuition breakdown',
+  } catch (error: any) {
+    return { 
+      success: false, 
+      error: 'Failed to create tuition breakdown: ' + error.message 
     };
   }
 }
 
 export async function updateTuitionBreakdown(
-  data: UpdateTuitionBreakdownData
+  data: UpdateTuitionBreakdownFormData
 ): Promise<ApiResponse<TuitionBreakdown>> {
   try {
-    const index = tuitionBreakdowns.findIndex(tb => tb.id === data.id);
-    
-    if (index === -1) {
-      return {
-        success: false,
-        error: 'Tuition breakdown not found',
-      };
+    const existing = await prisma.tuitionBreakdown.findUnique({
+      where: { id: data.id }
+    });
+
+    if (!existing) {
+      return { success: false, error: 'Tuition breakdown not found' };
     }
 
-    const totals = calculateTuitionTotals(data);
-    const existing = tuitionBreakdowns[index];
-    
-    const updatedTuitionBreakdown: TuitionBreakdown = {
-      ...existing,
-      ...data,
-      ...totals,
-      updatedAt: new Date(),
-    };
-
-    tuitionBreakdowns[index] = updatedTuitionBreakdown;
-    revalidatePath('/tuition-breakdowns');
-    
-    return {
-      success: true,
-      data: updatedTuitionBreakdown,
-      message: 'Tuition breakdown updated successfully',
-    };
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to update tuition breakdown',
-    };
-  }
-}
-
-export async function deleteTuitionBreakdown(id: string): Promise<ApiResponse<void>> {
-  try {
-    const index = tuitionBreakdowns.findIndex(tb => tb.id === id);
-    
-    if (index === -1) {
-      return {
-        success: false,
-        error: 'Tuition breakdown not found',
-      };
+    // Validate university if provided
+    if (data.universityId) {
+      const university = await prisma.university.findUnique({
+        where: { id: data.universityId }
+      });
+      if (!university) {
+        return { success: false, error: 'University not found' };
+      }
     }
 
-    // Also delete related payment schedules
-    paymentSchedules = paymentSchedules.filter(ps => ps.tuitionBreakdownId !== id);
-    tuitionBreakdowns.splice(index, 1);
-    
-    revalidatePath('/tuition-breakdowns');
-    
+    // Validate program if provided
+    if (data.programId) {
+      const program = await prisma.program.findUnique({
+        where: { id: data.programId }
+      });
+      const universityId = data.universityId || existing.universityId;
+      if (!program || program.universityId !== universityId) {
+        return { success: false, error: 'Program not found or does not belong to the university' };
+      }
+    }
+
+    // Create a new merged object with explicit type
+    const mergedData = {
+      baseTuition: data.baseTuition ?? existing.baseTuition,
+      labFees: data.labFees ?? existing.labFees,
+      libraryFees: data.libraryFees ?? existing.libraryFees,
+      technologyFees: data.technologyFees ?? existing.technologyFees,
+      activityFees: data.activityFees ?? existing.activityFees,
+      healthInsurance: data.healthInsurance ?? existing.healthInsurance,
+      dormitoryFees: data.dormitoryFees ?? existing.dormitoryFees,
+      mealPlanFees: data.mealPlanFees ?? existing.mealPlanFees,
+      applicationFee: data.applicationFee ?? existing.applicationFee,
+      registrationFee: data.registrationFee ?? existing.registrationFee,
+      examFees: data.examFees ?? existing.examFees,
+      graduationFee: data.graduationFee ?? existing.graduationFee,
+    };
+
+    const { totalAdditionalFees, totalTuition, grandTotal } = calculateTuitionTotals(mergedData);
+
+    const updated = await prisma.tuitionBreakdown.update({
+      where: { id: data.id },
+      data: {
+        universityId: data.universityId ?? existing.universityId,
+        programId: data.programId ?? existing.programId,
+        academicYear: data.academicYear ?? existing.academicYear,
+        yearNumber: data.yearNumber ?? existing.yearNumber,
+        baseTuition: data.baseTuition ?? existing.baseTuition,
+        labFees: data.labFees ?? existing.labFees,
+        libraryFees: data.libraryFees ?? existing.libraryFees,
+        technologyFees: data.technologyFees ?? existing.technologyFees,
+        activityFees: data.activityFees ?? existing.activityFees,
+        healthInsurance: data.healthInsurance ?? existing.healthInsurance,
+        dormitoryFees: data.dormitoryFees ?? existing.dormitoryFees,
+        mealPlanFees: data.mealPlanFees ?? existing.mealPlanFees,
+        applicationFee: data.applicationFee ?? existing.applicationFee,
+        registrationFee: data.registrationFee ?? existing.registrationFee,
+        examFees: data.examFees ?? existing.examFees,
+        graduationFee: data.graduationFee ?? existing.graduationFee,
+        totalTuition,
+        totalAdditionalFees,
+        grandTotal,
+        currency: data.currency ?? existing.currency,
+        currencySymbol: data.currencySymbol ?? existing.currencySymbol,
+        paymentTerms: data.paymentTerms ?? existing.paymentTerms,
+        installmentCount: data.installmentCount ?? existing.installmentCount,
+        isActive: data.isActive ?? existing.isActive,
+        effectiveDate: data.effectiveDate ?? existing.effectiveDate,
+        expiryDate: data.expiryDate ?? existing.expiryDate,
+      },
+      include: {
+        university: true,
+        program: true,
+      }
+    });
+
     return {
       success: true,
-      message: 'Tuition breakdown deleted successfully',
+      data: convertNullFeesToZero(updated),
+      message: 'Tuition breakdown updated successfully'
     };
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to delete tuition breakdown',
+  } catch (error: any) {
+    return { 
+      success: false, 
+      error: 'Failed to update tuition breakdown: ' + error.message 
     };
   }
 }
@@ -177,294 +281,138 @@ export async function getTuitionBreakdowns(
   page: number = 1,
   limit: number = 10
 ): Promise<PaginatedResponse<TuitionBreakdown>> {
-  let filteredData = tuitionBreakdowns;
-
-  // Apply filters
-  if (filters.universityId) {
-    filteredData = filteredData.filter(tb => tb.universityId === filters.universityId);
-  }
-  
-  if (filters.programId) {
-    filteredData = filteredData.filter(tb => tb.programId === filters.programId);
-  }
-  
-  if (filters.academicYear) {
-    filteredData = filteredData.filter(tb => tb.academicYear === filters.academicYear);
-  }
-  
-  if (filters.yearNumber) {
-    filteredData = filteredData.filter(tb => tb.yearNumber === filters.yearNumber);
-  }
-  
-  if (filters.isActive !== undefined) {
-    filteredData = filteredData.filter(tb => tb.isActive === filters.isActive);
-  }
-  
-  if (filters.search) {
-    const searchTerm = filters.search.toLowerCase();
-    filteredData = filteredData.filter(tb => 
-      tb.academicYear.toLowerCase().includes(searchTerm) ||
-      tb.currency.toLowerCase().includes(searchTerm) ||
-      tb.paymentTerms?.toLowerCase().includes(searchTerm)
-    );
-  }
-
-  // Apply pagination
-  const total = filteredData.length;
-  const startIndex = (page - 1) * limit;
-  const endIndex = startIndex + limit;
-  const paginatedData = filteredData.slice(startIndex, endIndex);
-
-  return {
-    data: paginatedData,
-    pagination: {
-      page,
-      limit,
-      total,
-      totalPages: Math.ceil(total / limit),
-    },
-  };
-}
-
-export async function getTuitionBreakdownById(id: string): Promise<TuitionBreakdown | null> {
-  return tuitionBreakdowns.find(tb => tb.id === id) || null;
-}
-
-// Payment Schedule Actions
-export async function createPaymentSchedule(
-  data: CreatePaymentScheduleData
-): Promise<ApiResponse<PaymentSchedule>> {
   try {
-    const newPaymentSchedule: PaymentSchedule = {
-      id: generateId(),
-      tuitionBreakdownId: data.tuitionBreakdownId,
-      installmentNumber: data.installmentNumber,
-      dueDate: data.dueDate,
-      amount: data.amount,
-      description: data.description || null,
-      lateFee: data.lateFee || 0,
-      gracePeroidDays: data.gracePeroidDays || 0,
-      isActive: data.isActive ?? true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+    const skip = (page - 1) * limit;
+    const where: any = {};
 
-    paymentSchedules.push(newPaymentSchedule);
-    revalidatePath('/payment-schedules');
-    
-    return {
-      success: true,
-      data: newPaymentSchedule,
-      message: 'Payment schedule created successfully',
-    };
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to create payment schedule',
-    };
-  }
-}
+    if (filters.universityId) where.universityId = filters.universityId;
+    if (filters.programId !== undefined) {
+      where.programId = filters.programId === null ? null : filters.programId;
+    }
+    if (filters.academicYear) where.academicYear = filters.academicYear;
+    if (filters.yearNumber !== undefined) where.yearNumber = filters.yearNumber;
+    if (filters.isActive !== undefined) where.isActive = filters.isActive;
 
-export async function updatePaymentSchedule(
-  data: UpdatePaymentScheduleData
-): Promise<ApiResponse<PaymentSchedule>> {
-  try {
-    const index = paymentSchedules.findIndex(ps => ps.id === data.id);
-    
-    if (index === -1) {
-      return {
-        success: false,
-        error: 'Payment schedule not found',
-      };
+    if (filters.search) {
+      where.OR = [
+        { university: { universityName: { contains: filters.search, mode: 'insensitive' } } },
+        { program: { programName: { contains: filters.search, mode: 'insensitive' } } },
+        { academicYear: { contains: filters.search, mode: 'insensitive' } }
+      ];
     }
 
-    const existing = paymentSchedules[index];
-    const updatedPaymentSchedule: PaymentSchedule = {
-      ...existing,
-      ...data,
-      updatedAt: new Date(),
-    };
+    const [total, data] = await Promise.all([
+      prisma.tuitionBreakdown.count({ where }),
+      prisma.tuitionBreakdown.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: [{ createdAt: 'desc' }, { academicYear: 'desc' }, { yearNumber: 'asc' }],
+        include: {
+          university: true,
+          program: true,
+        }
+      })
+    ]);
 
-    paymentSchedules[index] = updatedPaymentSchedule;
-    revalidatePath('/payment-schedules');
-    
+    // Convert null fee values to 0
+    const sanitizedData = data.map(breakdown => convertNullFeesToZero(breakdown));
+
     return {
-      success: true,
-      data: updatedPaymentSchedule,
-      message: 'Payment schedule updated successfully',
-    };
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to update payment schedule',
-    };
-  }
-}
-
-export async function deletePaymentSchedule(id: string): Promise<ApiResponse<void>> {
-  try {
-    const index = paymentSchedules.findIndex(ps => ps.id === id);
-    
-    if (index === -1) {
-      return {
-        success: false,
-        error: 'Payment schedule not found',
-      };
-    }
-
-    paymentSchedules.splice(index, 1);
-    revalidatePath('/payment-schedules');
-    
-    return {
-      success: true,
-      message: 'Payment schedule deleted successfully',
-    };
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to delete payment schedule',
-    };
-  }
-}
-
-export async function getPaymentSchedules(
-  filters: PaymentScheduleFilters = {},
-  page: number = 1,
-  limit: number = 10
-): Promise<PaginatedResponse<PaymentSchedule>> {
-  let filteredData = paymentSchedules;
-
-  // Apply filters
-  if (filters.tuitionBreakdownId) {
-    filteredData = filteredData.filter(ps => ps.tuitionBreakdownId === filters.tuitionBreakdownId);
-  }
-  
-  if (filters.installmentNumber) {
-    filteredData = filteredData.filter(ps => ps.installmentNumber === filters.installmentNumber);
-  }
-  
-  if (filters.isActive !== undefined) {
-    filteredData = filteredData.filter(ps => ps.isActive === filters.isActive);
-  }
-  
-  if (filters.dueDateFrom || filters.dueDateTo) {
-    filteredData = filteredData.filter(ps => {
-      const dueDate = new Date(ps.dueDate);
-      if (filters.dueDateFrom && dueDate < filters.dueDateFrom) return false;
-      if (filters.dueDateTo && dueDate > filters.dueDateTo) return false;
-      return true;
-    });
-  }
-
-  // Apply pagination
-  const total = filteredData.length;
-  const startIndex = (page - 1) * limit;
-  const endIndex = startIndex + limit;
-  const paginatedData = filteredData.slice(startIndex, endIndex);
-
-  return {
-    data: paginatedData,
-    pagination: {
-      page,
-      limit,
-      total,
-      totalPages: Math.ceil(total / limit),
-    },
-  };
-}
-
-export async function getPaymentScheduleById(id: string): Promise<PaymentSchedule | null> {
-  return paymentSchedules.find(ps => ps.id === id) || null;
-}
-
-// Analytics Actions
-export async function getTuitionAnalytics(): Promise<TuitionAnalytics> {
-  const totalTuitionBreakdowns = tuitionBreakdowns.length;
-  const totalPaymentSchedules = paymentSchedules.length;
-  
-  const activeTuitionBreakdowns = tuitionBreakdowns.filter(tb => tb.isActive).length;
-  
-  const averageBaseTuition = totalTuitionBreakdowns > 0 
-    ? tuitionBreakdowns.reduce((sum, tb) => sum + tb.baseTuition, 0) / totalTuitionBreakdowns 
-    : 0;
-    
-  const averageGrandTotal = totalTuitionBreakdowns > 0 
-    ? tuitionBreakdowns.reduce((sum, tb) => sum + tb.grandTotal, 0) / totalTuitionBreakdowns 
-    : 0;
-
-  const totalOutstandingAmount = paymentSchedules
-    .filter(ps => ps.isActive)
-    .reduce((sum, ps) => sum + ps.amount, 0);
-
-  const now = new Date();
-  const upcomingPayments = paymentSchedules.filter(ps => 
-    ps.isActive && new Date(ps.dueDate) > now
-  ).length;
-
-  const overduePayments = paymentSchedules.filter(ps => 
-    ps.isActive && new Date(ps.dueDate) < now
-  ).length;
-
-  return {
-    totalTuitionBreakdowns,
-    totalPaymentSchedules,
-    averageBaseTuition,
-    averageGrandTotal,
-    totalOutstandingAmount,
-    activeTuitionBreakdowns,
-    upcomingPayments,
-    overduePayments,
-  };
-}
-
-// Bulk Actions
-export async function bulkUpdateTuitionBreakdowns(
-  ids: string[],
-  updates: Partial<TuitionBreakdown>
-): Promise<ApiResponse<TuitionBreakdown[]>> {
-  try {
-    const updatedBreakdowns: TuitionBreakdown[] = [];
-    
-    for (const id of ids) {
-      const index = tuitionBreakdowns.findIndex(tb => tb.id === id);
-      if (index !== -1) {
-        const updated = { ...tuitionBreakdowns[index], ...updates, updatedAt: new Date() };
-        tuitionBreakdowns[index] = updated;
-        updatedBreakdowns.push(updated);
+      data: sanitizedData,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
       }
-    }
-    
-    revalidatePath('/tuition-breakdowns');
-    
-    return {
-      success: true,
-      data: updatedBreakdowns,
-      message: `Updated ${updatedBreakdowns.length} tuition breakdowns successfully`,
     };
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to bulk update tuition breakdowns',
+  } catch (error: any) {
+    throw new Error('Failed to fetch tuition breakdowns: ' + error.message);
+  }
+}
+
+export async function getTuitionBreakdownById(
+  id: string
+): Promise<ApiResponse<TuitionBreakdown>> {
+  try {
+    const breakdown = await prisma.tuitionBreakdown.findUnique({
+      where: { id },
+      include: {
+        university: true,
+        program: true,
+      }
+    });
+
+    if (!breakdown) {
+      return { success: false, error: 'Tuition breakdown not found' };
+    }
+
+    return { 
+      success: true, 
+      data: convertNullFeesToZero(breakdown) 
+    };
+  } catch (error: any) {
+    return { 
+      success: false, 
+      error: 'Failed to fetch tuition breakdown: ' + error.message 
     };
   }
 }
 
-export async function bulkDeleteTuitionBreakdowns(ids: string[]): Promise<ApiResponse<void>> {
+export async function deleteTuitionBreakdown(
+  id: string
+): Promise<ApiResponse<null>> {
   try {
-    // Remove tuition breakdowns and related payment schedules
-    tuitionBreakdowns = tuitionBreakdowns.filter(tb => !ids.includes(tb.id));
-    paymentSchedules = paymentSchedules.filter(ps => !ids.includes(ps.tuitionBreakdownId));
-    
-    revalidatePath('/tuition-breakdowns');
-    
-    return {
-      success: true,
-      message: `Deleted ${ids.length} tuition breakdowns successfully`,
+    await prisma.tuitionBreakdown.delete({ where: { id } });
+    return { success: true, message: 'Tuition breakdown deleted successfully' };
+  } catch (error: any) {
+    return { 
+      success: false, 
+      error: 'Failed to delete tuition breakdown: ' + error.message 
     };
-  } catch (error) {
+  }
+}
+
+export async function getTuitionAnalytics(): Promise<TuitionAnalytics> {
+  try {
+    const [
+      totalTuitionBreakdowns,
+      activeTuitionBreakdowns,
+      totalPaymentSchedules,
+      averageStats,
+      upcomingPayments,
+      overduePayments
+    ] = await Promise.all([
+      prisma.tuitionBreakdown.count(),
+      prisma.tuitionBreakdown.count({ where: { isActive: true } }),
+      prisma.paymentSchedule.count(),
+      prisma.tuitionBreakdown.aggregate({
+        _avg: { baseTuition: true, grandTotal: true },
+        _sum: { grandTotal: true }
+      }),
+      prisma.paymentSchedule.count({
+        where: {
+          dueDate: { gte: new Date(), lte: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) },
+          isActive: true
+        }
+      }),
+      prisma.paymentSchedule.count({
+        where: { dueDate: { lt: new Date() }, isActive: true }
+      })
+    ]);
+
     return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to bulk delete tuition breakdowns',
+      totalTuitionBreakdowns,
+      totalPaymentSchedules,
+      averageBaseTuition: averageStats._avg.baseTuition || 0,
+      averageGrandTotal: averageStats._avg.grandTotal || 0,
+      totalOutstandingAmount: averageStats._sum.grandTotal || 0,
+      activeTuitionBreakdowns,
+      upcomingPayments,
+      overduePayments
     };
+  } catch (error: any) {
+    throw new Error('Failed to fetch tuition analytics: ' + error.message);
   }
 }
