@@ -29,6 +29,7 @@ model User {
   scholarshipApplications  ScholarshipApplication[]
   financialAidApplications FinancialAidApplication[]
   EssaySubmission          EssaySubmission[]
+  savedUniversities        University[] @relation("UserSavedUniversities")
 
   @@map("users")
 }
@@ -116,7 +117,7 @@ model University {
   missionStatement           String?
   visionStatement            String?
   accreditationDetails       String?
-  whyChooseHighlights        String?
+  whyChooseHighlights        String[] // Changed from String to String[]
   careerOutcomes             String?
   ftGlobalRanking            Int?
   ftRegionalRanking          Int?
@@ -149,6 +150,14 @@ model University {
   createdAt                  DateTime @default(now())
   updatedAt                  DateTime @updatedAt
 
+  // ✅ Newly Added Fields
+  averageDeadlines           String?
+  studentsPerYear            Int?
+  brochureUrl                String?
+  additionalDocumentUrls     String[]
+  averageProgramLengthMonths Int?
+  intakes                    String?
+
   // Relations
   images            UniversityImage[]
   programs          Program[]
@@ -159,6 +168,8 @@ model University {
   scholarships      Scholarship[]
   feeStructures     FeeStructure[]
   financialAids     FinancialAid[]
+
+  savedByUsers      User[] @relation("UserSavedUniversities")
 
   @@map("universities")
 }
@@ -183,6 +194,12 @@ model UniversityImage {
 
   @@map("university_images")
 }
+
+
+
+
+
+
 
 model Department {
   id           String   @id @default(cuid())

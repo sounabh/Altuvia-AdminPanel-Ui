@@ -1,3 +1,5 @@
+// types/university.ts
+
 /**
  * University image interface
  */
@@ -15,12 +17,11 @@ export interface UniversityImage {
   width?: number | null;
   height?: number | null;
   createdAt: Date;
-
   university?: University;
 }
 
 /**
- * University entity interface matching Prisma schema
+ * Updated University entity interface matching the form
  */
 export interface University {
   id: string;
@@ -36,7 +37,7 @@ export interface University {
   missionStatement?: string | null;
   visionStatement?: string | null;
   accreditationDetails?: string | null;
-  whyChooseHighlights?: string | null;
+  whyChooseHighlights: string[]; // Changed to array
   careerOutcomes?: string | null;
 
   // Rankings
@@ -78,6 +79,14 @@ export interface University {
   // Status
   isActive: boolean;
   isFeatured: boolean;
+
+  // New fields from form
+  averageDeadlines?: string | null;
+  studentsPerYear?: number | null;
+  brochureUrl?: string | null;
+  additionalDocumentUrls: string[]; // New field
+  averageProgramLengthMonths?: number | null; // New field
+  intakes?: string | null; // New field
 
   // Timestamps
   createdAt: Date;
@@ -103,7 +112,7 @@ export interface UniversityFormData {
   missionStatement?: string | null;
   visionStatement?: string | null;
   accreditationDetails?: string | null;
-  whyChooseHighlights?: string | null;
+  whyChooseHighlights: string[]; // Array for form
   careerOutcomes?: string | null;
 
   // Rankings
@@ -145,6 +154,14 @@ export interface UniversityFormData {
   // Status
   isActive: boolean;
   isFeatured: boolean;
+
+  // New fields from form
+  averageDeadlines?: string | null;
+  studentsPerYear?: number | null;
+  brochureUrl?: string | null;
+  additionalDocumentUrls: string[]; // New field
+  averageProgramLengthMonths?: number | null; // New field
+  intakes?: string | null; // New field
 }
 
 /**
@@ -243,5 +260,6 @@ export interface UniversityValidationErrors {
   slug?: string;
   city?: string;
   country?: string;
+  // Add other fields as needed
   [key: string]: string | undefined;
 }

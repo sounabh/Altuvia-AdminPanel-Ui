@@ -5,21 +5,24 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, RefreshCw } from "lucide-react";
+import { Plus, RefreshCw, Image as ImageIcon } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { UniversityForm } from "./components/UniversityForm";
 import { UniversityTable } from "./components/UniversityTable";
 import { UniversityStatsCards } from "./components/UniversityStatsCards";
 import { UniversityFiltersComponent } from "./components/UniversityFilter";
 import { DeleteConfirmationDialog } from "./components/DeleteDialog";
+import { UniversityImageManager } from "./components/UniversityImageManager";
 import { 
   getUniversities, 
   createUniversity, 
   updateUniversity, 
   deleteUniversity, 
   toggleUniversityFeatured,
-  getUniversityStats 
+  getUniversityStats,
+  getUniversityImages 
 } from "./actions/UniActions";
-import { University, UniversityFormData, UniversityFilters } from "./types/university";
+import { University, UniversityFormData, UniversityFilters, UniversityImage } from "./types/university";
 import { toast } from "sonner";
 
 /**
@@ -45,6 +48,11 @@ export default function UniversitiesPage() {
     selectedCountry: "",
     showFeaturedOnly: false,
   });
+
+  // Image management state
+  const [imageManagerOpen, setImageManagerOpen] = useState(false);
+  const [selectedUniversityForImages, setSelectedUniversityForImages] = useState<University | null>(null);
+  const [universityImages, setUniversityImages] = useState<UniversityImage[]>([]);
 
   /**
    * Load universities and stats on component mount
@@ -194,6 +202,30 @@ export default function UniversitiesPage() {
   };
 
   /**
+   * Open image manager for a university
+   */
+  const handleManageImages = async (university: University) => {
+    try {
+      setSelectedUniversityForImages(university);
+      const images = await getUniversityImages(university.id);
+      setUniversityImages(images);
+      setImageManagerOpen(true);
+    } catch (error) {
+      toast.error("Failed to load university images");
+      console.error("Error loading images:", error);
+    }
+  };
+
+  /**
+   * Handle images change in manager
+   */
+  const handleImagesChange = (updatedImages: UniversityImage[]) => {
+    setUniversityImages(updatedImages);
+    // Also refresh the main universities list to update image counts
+    loadData();
+  };
+
+  /**
    * Refresh data
    */
   const handleRefresh = () => {
@@ -244,6 +276,7 @@ export default function UniversitiesPage() {
         onEdit={handleEditUniversity}
         onDelete={handleDeleteUniversity}
         onToggleFeatured={handleToggleFeatured}
+        onManageImages={handleManageImages}
       />
 
       {/* University Form Modal */}
@@ -256,6 +289,29 @@ export default function UniversitiesPage() {
         }}
         onSave={handleSaveUniversity}
       />
+
+      {/* Image Manager Modal */}
+      <Dialog open={imageManagerOpen} onOpenChange={setImageManagerOpen}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ImageIcon className="h-5 w-5" />
+              Manage Images - {selectedUniversityForImages?.universityName}
+            </DialogTitle>
+            <DialogDescription>
+              Upload and manage images for this university
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedUniversityForImages && (
+            <UniversityImageManager
+              universityId={selectedUniversityForImages.id}
+              images={universityImages}
+              onImagesChange={handleImagesChange}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <DeleteConfirmationDialog

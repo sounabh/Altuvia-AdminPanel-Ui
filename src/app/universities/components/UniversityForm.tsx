@@ -1,5 +1,4 @@
-
-
+/* eslint-disable @typescript-eslint/no-unused-vars */
 // components/university/UniversityForm.tsx
 "use client";
 
@@ -13,7 +12,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Sparkles, Save, X } from "lucide-react";
-import { University, UniversityFormData } from "../types/university";
+import { University, UniversityFormData, UniversityImage } from "../types/university";
+import { UniversityImageManager } from "./UniversityImageManager";
+import { getUniversityImages } from "../actions/UniActions";
 import { toast } from "sonner";
 
 interface UniversityFormProps {
@@ -23,10 +24,6 @@ interface UniversityFormProps {
   onSave: (data: UniversityFormData) => Promise<void>;
 }
 
-/**
- * Form component for creating/editing universities
- * Organized in tabs for better UX with AI data generation
- */
 export function UniversityForm({ 
   university, 
   isOpen, 
@@ -47,7 +44,7 @@ export function UniversityForm({
     missionStatement: "",
     visionStatement: "",
     accreditationDetails: "",
-    whyChooseHighlights: "",
+    whyChooseHighlights: [],
     careerOutcomes: "",
     ftGlobalRanking: undefined,
     ftRegionalRanking: undefined,
@@ -77,13 +74,19 @@ export function UniversityForm({
     canonicalUrl: "",
     isActive: true,
     isFeatured: false,
+    // New fields
+    averageDeadlines: "",
+    studentsPerYear: undefined,
+    brochureUrl: "",
+    additionalDocumentUrls: [],
+    averageProgramLengthMonths: undefined,
+    intakes: "",
   });
 
   const [activeTab, setActiveTab] = useState("basic");
+  const [images, setImages] = useState<UniversityImage[]>([]);
+  const [isLoadingImages, setIsLoadingImages] = useState(false);
 
-  /**
-   * Initialize form data when university prop changes
-   */
   useEffect(() => {
     if (university) {
       setFormData({
@@ -99,7 +102,7 @@ export function UniversityForm({
         missionStatement: university.missionStatement || "",
         visionStatement: university.visionStatement || "",
         accreditationDetails: university.accreditationDetails || "",
-        whyChooseHighlights: university.whyChooseHighlights || "",
+        whyChooseHighlights: university.whyChooseHighlights || [],
         careerOutcomes: university.careerOutcomes || "",
         ftGlobalRanking: university.ftGlobalRanking,
         ftRegionalRanking: university.ftRegionalRanking,
@@ -129,13 +132,36 @@ export function UniversityForm({
         canonicalUrl: university.canonicalUrl || "",
         isActive: university.isActive,
         isFeatured: university.isFeatured,
+        // New fields
+        averageDeadlines: university.averageDeadlines || "",
+        studentsPerYear: university.studentsPerYear,
+        brochureUrl: university.brochureUrl || "",
+        additionalDocumentUrls: university.additionalDocumentUrls || [],
+        averageProgramLengthMonths: university.averageProgramLengthMonths,
+        intakes: university.intakes || "",
       });
+
+      // Load images for existing university
+      loadUniversityImages(university.id);
+    } else {
+      // Reset images for new university
+      setImages([]);
     }
   }, [university]);
 
-  /**
-   * Generate URL-friendly slug from university name
-   */
+  const loadUniversityImages = async (universityId: string) => {
+    try {
+      setIsLoadingImages(true);
+      const universityImages = await getUniversityImages(universityId);
+      setImages(universityImages);
+    } catch (error) {
+      console.error("Error loading university images:", error);
+      toast.error("Failed to load university images");
+    } finally {
+      setIsLoadingImages(false);
+    }
+  };
+
   const generateSlug = (name: string) => {
     return name
       .toLowerCase()
@@ -144,9 +170,6 @@ export function UniversityForm({
       .replace(/-+/g, "-");
   };
 
-  /**
-   * Handle university name change and auto-generate slug
-   */
   const handleNameChange = (name: string) => {
     setFormData({
       ...formData,
@@ -155,9 +178,6 @@ export function UniversityForm({
     });
   };
 
-  /**
-   * Calculate total cost from tuition and additional fees
-   */
   const calculateTotalCost = () => {
     const tuition = parseFloat(formData.tuitionFees?.toString() || "0");
     const additional = parseFloat(formData.additionalFees?.toString() || "0");
@@ -165,9 +185,6 @@ export function UniversityForm({
     setFormData({ ...formData, totalCost: total });
   };
 
-  /**
-   * Generate mock university data using AI-like randomization
-   */
   const generateAIData = () => {
     const universities = [
       "University of Excellence",
@@ -201,6 +218,12 @@ export function UniversityForm({
       overview: `${randomUniversity} is a prestigious institution known for its academic excellence, innovative research, and commitment to student success. Founded with the mission to provide world-class education, the university has consistently ranked among the top institutions globally.`,
       missionStatement: "To educate leaders, advance knowledge, and serve society through excellence in teaching, learning, and research.",
       visionStatement: "To be a globally recognized center of academic excellence and innovation.",
+      whyChooseHighlights: [
+        "World-class faculty with industry experience",
+        "Strong industry connections and placement opportunities",
+        "State-of-the-art campus facilities",
+        "Diverse student community from over 50 countries"
+      ],
       ftGlobalRanking: Math.floor(Math.random() * 100) + 1,
       qsRanking: Math.floor(Math.random() * 200) + 1,
       usNewsRanking: Math.floor(Math.random() * 150) + 1,
@@ -217,15 +240,22 @@ export function UniversityForm({
       languageTestRequirements: "IELTS 6.5 or TOEFL 80 or equivalent",
       isActive: true,
       isFeatured: Math.random() > 0.7,
+      // New fields
+      averageDeadlines: "January 15, May 15, September 15",
+      studentsPerYear: Math.floor(Math.random() * 2000) + 1000,
+      brochureUrl: `https://www.${generateSlug(randomUniversity)}.edu/brochure.pdf`,
+      additionalDocumentUrls: [
+        `https://www.${generateSlug(randomUniversity)}.edu/admission-requirements.pdf`,
+        `https://www.${generateSlug(randomUniversity)}.edu/course-catalog.pdf`
+      ],
+      averageProgramLengthMonths: Math.floor(Math.random() * 24) + 12,
+      intakes: "Fall, Spring, Summer",
     };
 
     setFormData({ ...formData, ...aiData });
     toast.success("AI-generated university data populated!");
   };
 
-  /**
-   * Handle form submission with proper data transformation
-   */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -239,22 +269,25 @@ export function UniversityForm({
     }
   };
 
+  const handleImagesChange = (updatedImages: UniversityImage[]) => {
+    setImages(updatedImages);
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {university ? "Edit University" : "Add New University"}
           </DialogTitle>
           <DialogDescription>
             {university
-              ? "Update university information"
+              ? "Update university information and manage images"
               : "Add a new university to the platform"}
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit}>
-          {/* AI Data Generation Button */}
           <div className="flex justify-end mb-4">
             <Button
               type="button"
@@ -267,13 +300,13 @@ export function UniversityForm({
             </Button>
           </div>
 
-          {/* Form Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-5">
+            <TabsList className="grid w-full grid-cols-6">
               <TabsTrigger value="basic">Basic Info</TabsTrigger>
               <TabsTrigger value="content">Content</TabsTrigger>
               <TabsTrigger value="rankings">Rankings</TabsTrigger>
               <TabsTrigger value="admissions">Admissions</TabsTrigger>
+              <TabsTrigger value="images">Images</TabsTrigger>
               <TabsTrigger value="seo">SEO & Meta</TabsTrigger>
             </TabsList>
 
@@ -362,6 +395,16 @@ export function UniversityForm({
                 />
               </div>
 
+              <div>
+                <Label htmlFor="brochureUrl">Brochure URL</Label>
+                <Input
+                  id="brochureUrl"
+                  type="url"
+                  value={formData.brochureUrl || ""}
+                  onChange={(e) => setFormData({ ...formData, brochureUrl: e.target.value })}
+                />
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex items-center space-x-2">
                   <Checkbox
@@ -438,11 +481,16 @@ export function UniversityForm({
               </div>
 
               <div>
-                <Label htmlFor="whyChooseHighlights">Why Choose Highlights</Label>
+                <Label htmlFor="whyChooseHighlights">Why Choose Highlights (one per line)</Label>
                 <Textarea
                   id="whyChooseHighlights"
-                  value={formData.whyChooseHighlights || ""}
-                  onChange={(e) => setFormData({ ...formData, whyChooseHighlights: e.target.value })}
+                  value={formData.whyChooseHighlights?.join("\n") || ""}
+                  onChange={(e) => 
+                    setFormData({ 
+                      ...formData, 
+                      whyChooseHighlights: e.target.value.split("\n") 
+                    })
+                  }
                   rows={3}
                 />
               </div>
@@ -671,6 +719,67 @@ export function UniversityForm({
                 </div>
               </div>
 
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="averageDeadlines">Average Deadlines</Label>
+                  <Input
+                    id="averageDeadlines"
+                    value={formData.averageDeadlines || ""}
+                    onChange={(e) => setFormData({ ...formData, averageDeadlines: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="studentsPerYear">Students Per Year</Label>
+                  <Input
+                    id="studentsPerYear"
+                    type="number"
+                    value={formData.studentsPerYear || ""}
+                    onChange={(e) => setFormData({ 
+                      ...formData, 
+                      studentsPerYear: e.target.value ? parseInt(e.target.value) : undefined 
+                    })}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="averageProgramLengthMonths">Avg. Program Length (Months)</Label>
+                  <Input
+                    id="averageProgramLengthMonths"
+                    type="number"
+                    value={formData.averageProgramLengthMonths || ""}
+                    onChange={(e) => setFormData({ 
+                      ...formData, 
+                      averageProgramLengthMonths: e.target.value ? parseInt(e.target.value) : undefined 
+                    })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="intakes">Intakes</Label>
+                  <Input
+                    id="intakes"
+                    value={formData.intakes || ""}
+                    onChange={(e) => setFormData({ ...formData, intakes: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="additionalDocumentUrls">Additional Document URLs (one per line)</Label>
+                <Textarea
+                  id="additionalDocumentUrls"
+                  value={formData.additionalDocumentUrls?.join("\n") || ""}
+                  onChange={(e) => 
+                    setFormData({ 
+                      ...formData, 
+                      additionalDocumentUrls: e.target.value.split("\n") 
+                    })
+                  }
+                  rows={3}
+                />
+              </div>
+
               <div>
                 <Label htmlFor="scholarshipInfo">Scholarship Information</Label>
                 <Textarea
@@ -700,6 +809,21 @@ export function UniversityForm({
                   rows={3}
                 />
               </div>
+            </TabsContent>
+
+            {/* Images Tab */}
+            <TabsContent value="images" className="space-y-4">
+              {university ? (
+                <UniversityImageManager
+                  universityId={university.id}
+                  images={images}
+                  onImagesChange={handleImagesChange}
+                />
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <p>Save the university first to manage images.</p>
+                </div>
+              )}
             </TabsContent>
 
             {/* SEO Tab */}
@@ -737,14 +861,13 @@ export function UniversityForm({
                 <Input
                   id="canonicalUrl"
                   type="url"
-                  value={formData.canonicalUrl ? "https://" + formData.canonicalUrl : ""}
+                  value={formData.canonicalUrl || ""}
                   onChange={(e) => setFormData({ ...formData, canonicalUrl: e.target.value })}
                 />
               </div>
             </TabsContent>
           </Tabs>
 
-          {/* Form Actions */}
           <div className="flex justify-end space-x-2 mt-6">
             <Button type="button" variant="outline" onClick={onClose}>
               <X className="h-4 w-4 mr-2" />

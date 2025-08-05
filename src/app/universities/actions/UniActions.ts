@@ -3,40 +3,16 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-
 import { z } from "zod";
-
-// Database imports - using both Drizzle and Prisma approaches
-
 import { prisma } from "@/lib/prisma";
-
-
-
-
-
+import cloudinary from "@/lib/cloudinary";
 
 // Type imports
-import { UniversityImage, UniversityFormData,University } from "../types/university";
+import { UniversityImage, UniversityFormData, University } from "../types/university";
 
 // =============================================================================
 // VALIDATION SCHEMAS
 // =============================================================================
-
-/*const uploadImageSchema = z.object({
-  universityId: z.string().min(1, "University ID is required"),
-  imageFile: z.instanceof(File).refine(
-    (file) => file.size <= 5 * 1024 * 1024,
-    "File size must be less than 5MB"
-  ).refine(
-    (file) => file.type.startsWith("image/"),
-    "File must be an image"
-  ),
-  imageType: z.enum(["campus", "building", "classroom", "library", "dormitory", "recreation", "laboratory", "other"]).optional(),
-  imageTitle: z.string().optional(),
-  imageAltText: z.string().optional(),
-  imageCaption: z.string().optional(),
-  isPrimary: z.boolean().optional(),
-});
 
 const updateImageSchema = z.object({
   id: z.string().min(1, "Image ID is required"),
@@ -48,11 +24,6 @@ const updateImageSchema = z.object({
   isPrimary: z.boolean().optional(),
 });
 
-const deleteImageSchema = z.object({
-  id: z.string().min(1, "Image ID is required"),
-  universityId: z.string().min(1, "University ID is required"),
-});
-
 const reorderImagesSchema = z.object({
   universityId: z.string().min(1, "University ID is required"),
   imageOrders: z.array(z.object({
@@ -60,8 +31,6 @@ const reorderImagesSchema = z.object({
     displayOrder: z.number()
   }))
 });
-
-
 
 // =============================================================================
 // UNIVERSITY CRUD OPERATIONS
@@ -87,14 +56,7 @@ export async function getUniversities(): Promise<University[]> {
 
     return universities;
   } catch (error: any) {
-    console.error("🔴 Error fetching universities:");
-    console.error("🧩 Message:", error.message);
-    console.error("📄 Stack:", error.stack);
-
-    if (error instanceof Error) {
-      console.error("🛠 Prisma error name:", error.name);
-    }
-
+    console.error("🔴 Error fetching universities:", error);
     throw new Error("Failed to fetch universities");
   }
 }
@@ -170,6 +132,24 @@ export async function updateUniversity(id: string, data: UniversityFormData) {
  */
 export async function deleteUniversity(id: string) {
   try {
+    // First, delete all associated images from Cloudinary
+    const images = await prisma.universityImage.findMany({
+      where: { universityId: id },
+    });
+
+    // Delete images from Cloudinary
+    for (const image of images) {
+      try {
+        const publicId = extractPublicIdFromUrl(image.imageUrl);
+        if (publicId) {
+          await cloudinary.uploader.destroy(publicId);
+        }
+      } catch (cloudinaryError) {
+        console.error('Error deleting image from Cloudinary:', cloudinaryError);
+      }
+    }
+
+    // Delete university (this will cascade delete images due to foreign key)
     await prisma.university.delete({
       where: { id },
     });
@@ -215,107 +195,10 @@ export async function toggleUniversityFeatured(id: string) {
 // =============================================================================
 
 /**
- * Upload a new university image
- * Handles file upload to S3 and database record creation
- * Automatically sets as primary if it's the first image
- */
-/*export async function uploadUniversityImage(formData: FormData) {
-  try {
-    const imageFile = formData.get("file") as File;
-    const universityId = formData.get("universityId") as string;
-    const imageType = formData.get("imageType") as string || "other";
-    const imageTitle = formData.get("imageTitle") as string || imageFile.name;
-    const imageAltText = formData.get("imageAltText") as string || imageFile.name;
-    const imageCaption = formData.get("imageCaption") as string || "";
-    const isPrimary = formData.get("isPrimary") === "true";
-
-    // Validate input
-    const validatedFields = uploadImageSchema.parse({
-      universityId,
-      imageFile,
-      imageType,
-      imageTitle,
-      imageAltText,
-      imageCaption,
-      isPrimary,
-    });
-
-    // Get current images count for display order
-    const existingImages = await db
-      .select()
-      .from(universityImages)
-      .where(eq(universityImages.universityId, universityId))
-      .orderBy(desc(universityImages.displayOrder));
-
-    const nextDisplayOrder = existingImages.length > 0 
-      ? existingImages[0].displayOrder + 1 
-      : 0;
-
-    // Upload file to S3
-    const fileExtension = imageFile.name.split('.').pop();
-    const fileName = `universities/${universityId}/images/${Date.now()}.${fileExtension}`;
-    const imageUrl = await uploadFileToS3(imageFile, fileName);
-
-    // If this is set as primary, update existing primary images
-    if (isPrimary) {
-      await db
-        .update(universityImages)
-        .set({ isPrimary: false })
-        .where(
-          and(
-            eq(universityImages.universityId, universityId),
-            eq(universityImages.isPrimary, true)
-          )
-        );
-    }
-
-    // Insert new image record
-    const [newImage] = await db
-      .insert(universityImages)
-      .values({
-        universityId,
-        imageUrl,
-        imageType: imageType as any,
-        imageTitle,
-        imageAltText,
-        imageCaption,
-        isPrimary: isPrimary || existingImages.length === 0, // First image is primary
-        displayOrder: nextDisplayOrder,
-      })
-      .returning();
-
-    revalidatePath(`/admin/universities/${universityId}`);
-    revalidatePath(`/admin/universities`);
-
-    return {
-      success: true,
-      image: newImage,
-      message: "Image uploaded successfully",
-    };
-
-  } catch (error) {
-    console.error("Error uploading university image:", error);
-    
-    if (error instanceof z.ZodError) {
-      return {
-        success: false,
-        error: "Validation failed",
-        details: error.errors,
-      };
-    }
-
-    return {
-      success: false,
-      error: "Failed to upload image",
-    };
-  }
-}
-
-/**
  * Update university image details
  * Updates metadata without changing the actual image file
  */
-/*export async function updateUniversityImage(data: {
+export async function updateUniversityImage(data: {
   id: string;
   universityId: string;
   imageType?: string;
@@ -329,18 +212,14 @@ export async function toggleUniversityFeatured(id: string) {
     const validatedFields = updateImageSchema.parse(data);
 
     // Check if image exists
-    const existingImage = await db
-      .select()
-      .from(universityImages)
-      .where(
-        and(
-          eq(universityImages.id, validatedFields.id),
-          eq(universityImages.universityId, validatedFields.universityId)
-        )
-      )
-      .limit(1);
+    const existingImage = await prisma.universityImage.findFirst({
+      where: {
+        id: validatedFields.id,
+        universityId: validatedFields.universityId,
+      },
+    });
 
-    if (existingImage.length === 0) {
+    if (!existingImage) {
       return {
         success: false,
         error: "Image not found",
@@ -349,30 +228,27 @@ export async function toggleUniversityFeatured(id: string) {
 
     // If setting as primary, update other images
     if (validatedFields.isPrimary) {
-      await db
-        .update(universityImages)
-        .set({ isPrimary: false })
-        .where(
-          and(
-            eq(universityImages.universityId, validatedFields.universityId),
-            eq(universityImages.isPrimary, true)
-          )
-        );
+      await prisma.universityImage.updateMany({
+        where: {
+          universityId: validatedFields.universityId,
+          isPrimary: true,
+        },
+        data: { isPrimary: false },
+      });
     }
 
     // Update image
-    const [updatedImage] = await db
-      .update(universityImages)
-      .set({
+    const updatedImage = await prisma.universityImage.update({
+      where: { id: validatedFields.id },
+      data: {
         imageType: validatedFields.imageType as any,
         imageTitle: validatedFields.imageTitle,
         imageAltText: validatedFields.imageAltText,
         imageCaption: validatedFields.imageCaption,
         isPrimary: validatedFields.isPrimary,
-        updatedAt: new Date(),
-      })
-      .where(eq(universityImages.id, validatedFields.id))
-      .returning();
+       
+      },
+    });
 
     revalidatePath(`/admin/universities/${validatedFields.universityId}`);
     revalidatePath(`/admin/universities`);
@@ -390,7 +266,7 @@ export async function toggleUniversityFeatured(id: string) {
       return {
         success: false,
         error: "Validation failed",
-        details: error.errors,
+        details: error,
       };
     }
 
@@ -403,67 +279,58 @@ export async function toggleUniversityFeatured(id: string) {
 
 /**
  * Delete university image
- * Removes image from both S3 and database
+ * Removes image from both Cloudinary and database
  * Automatically promotes another image to primary if needed
  */
-/*export async function deleteUniversityImage(data: {
-  id: string;
-  universityId: string;
-}) {
+export async function deleteUniversityImage(imageId: string, universityId: string) {
   try {
-    // Validate input
-    const validatedFields = deleteImageSchema.parse(data);
+    // Get image details
+    const imageToDelete = await prisma.universityImage.findFirst({
+      where: {
+        id: imageId,
+        universityId: universityId,
+      },
+    });
 
-    // Get image details for S3 deletion
-    const imageToDelete = await db
-      .select()
-      .from(universityImages)
-      .where(
-        and(
-          eq(universityImages.id, validatedFields.id),
-          eq(universityImages.universityId, validatedFields.universityId)
-        )
-      )
-      .limit(1);
-
-    if (imageToDelete.length === 0) {
+    if (!imageToDelete) {
       return {
         success: false,
         error: "Image not found",
       };
     }
 
-    // Delete from S3
+    // Delete from Cloudinary
     try {
-      await deleteFileFromS3(imageToDelete[0].imageUrl);
-    } catch (s3Error) {
-      console.error("Error deleting from S3:", s3Error);
-      // Continue with DB deletion even if S3 fails
+      const publicId = extractPublicIdFromUrl(imageToDelete.imageUrl);
+      if (publicId) {
+        await cloudinary.uploader.destroy(publicId);
+      }
+    } catch (cloudinaryError) {
+      console.error("Error deleting from Cloudinary:", cloudinaryError);
+      // Continue with DB deletion even if Cloudinary fails
     }
 
     // Delete from database
-    await db
-      .delete(universityImages)
-      .where(eq(universityImages.id, validatedFields.id));
+    await prisma.universityImage.delete({
+      where: { id: imageId },
+    });
 
     // If this was the primary image, set another image as primary
-    if (imageToDelete[0].isPrimary) {
-      const remainingImages = await db
-        .select()
-        .from(universityImages)
-        .where(eq(universityImages.universityId, validatedFields.universityId))
-        .orderBy(asc(universityImages.displayOrder))
-        .limit(1);
+    if (imageToDelete.isPrimary) {
+      const remainingImages = await prisma.universityImage.findFirst({
+        where: { universityId: universityId },
+        orderBy: { displayOrder: 'asc' },
+      });
 
-      if (remainingImages.length > 0) {
-        await db
-          .update(universityImages)
-          .set({ isPrimary: true })
-          .where(eq(universityImages.id, remainingImages[0].id));
+      if (remainingImages) {
+        await prisma.universityImage.update({
+          where: { id: remainingImages.id },
+          data: { isPrimary: true },
+        });
       }
     }
 
-    revalidatePath(`/admin/universities/${validatedFields.universityId}`);
+    revalidatePath(`/admin/universities/${universityId}`);
     revalidatePath(`/admin/universities`);
 
     return {
@@ -474,14 +341,6 @@ export async function toggleUniversityFeatured(id: string) {
   } catch (error) {
     console.error("Error deleting university image:", error);
     
-    if (error instanceof z.ZodError) {
-      return {
-        success: false,
-        error: "Validation failed",
-        details: error.errors,
-      };
-    }
-
     return {
       success: false,
       error: "Failed to delete image",
@@ -493,7 +352,7 @@ export async function toggleUniversityFeatured(id: string) {
  * Reorder university images
  * Updates display order for multiple images in batch
  */
-/*export async function reorderUniversityImages(data: {
+export async function reorderUniversityImages(data: {
   universityId: string;
   imageOrders: Array<{ id: string; displayOrder: number }>;
 }) {
@@ -503,18 +362,16 @@ export async function toggleUniversityFeatured(id: string) {
 
     // Update display orders in batch
     const updatePromises = validatedFields.imageOrders.map(({ id, displayOrder }) =>
-      db
-        .update(universityImages)
-        .set({ 
+      prisma.universityImage.update({
+        where: {
+          id,
+          universityId: validatedFields.universityId,
+        },
+        data: { 
           displayOrder,
-          updatedAt: new Date(),
-        })
-        .where(
-          and(
-            eq(universityImages.id, id),
-            eq(universityImages.universityId, validatedFields.universityId)
-          )
-        )
+        
+        },
+      })
     );
 
     await Promise.all(updatePromises);
@@ -534,7 +391,7 @@ export async function toggleUniversityFeatured(id: string) {
       return {
         success: false,
         error: "Validation failed",
-        details: error.errors,
+        details: error,
       };
     }
 
@@ -549,13 +406,12 @@ export async function toggleUniversityFeatured(id: string) {
  * Get university images
  * Returns all images for a university ordered by display order
  */
-/*export async function getUniversityImages(universityId: string): Promise<UniversityImage[]> {
+export async function getUniversityImages(universityId: string): Promise<UniversityImage[]> {
   try {
-    const images = await db
-      .select()
-      .from(universityImages)
-      .where(eq(universityImages.universityId, universityId))
-      .orderBy(asc(universityImages.displayOrder));
+    const images = await prisma.universityImage.findMany({
+      where: { universityId },
+      orderBy: { displayOrder: 'asc' },
+    });
 
     return images;
   } catch (error) {
@@ -568,37 +424,27 @@ export async function toggleUniversityFeatured(id: string) {
  * Set primary image
  * Designates a specific image as the primary image for a university
  */
-/*export async function setPrimaryUniversityImage(data: {
-  id: string;
-  universityId: string;
-}) {
+export async function setPrimaryUniversityImage(imageId: string, universityId: string) {
   try {
-    const validatedFields = z.object({
-      id: z.string().min(1),
-      universityId: z.string().min(1),
-    }).parse(data);
-
     // Reset all images to non-primary
-    await db
-      .update(universityImages)
-      .set({ isPrimary: false })
-      .where(eq(universityImages.universityId, validatedFields.universityId));
+    await prisma.universityImage.updateMany({
+      where: { universityId },
+      data: { isPrimary: false },
+    });
 
     // Set the selected image as primary
-    await db
-      .update(universityImages)
-      .set({ 
+    await prisma.universityImage.update({
+      where: {
+        id: imageId,
+        universityId: universityId,
+      },
+      data: { 
         isPrimary: true,
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(universityImages.id, validatedFields.id),
-          eq(universityImages.universityId, validatedFields.universityId)
-        )
-      );
+       
+      },
+    });
 
-    revalidatePath(`/admin/universities/${validatedFields.universityId}`);
+    revalidatePath(`/admin/universities/${universityId}`);
     revalidatePath(`/admin/universities`);
 
     return {
@@ -609,14 +455,6 @@ export async function toggleUniversityFeatured(id: string) {
   } catch (error) {
     console.error("Error setting primary image:", error);
     
-    if (error instanceof z.ZodError) {
-      return {
-        success: false,
-        error: "Validation failed",
-        details: error.errors,
-      };
-    }
-
     return {
       success: false,
       error: "Failed to set primary image",
@@ -638,6 +476,29 @@ function generateSlug(name: string): string {
     .replace(/[^a-z0-9 -]/g, '')
     .replace(/\s+/g, '-')
     .replace(/-+/g, '-');
+}
+
+/**
+ * Extract public_id from Cloudinary URL
+ */
+function extractPublicIdFromUrl(url: string): string | null {
+  try {
+    const urlParts = url.split('/');
+    const uploadIndex = urlParts.indexOf('upload');
+    
+    if (uploadIndex === -1) return null;
+    
+    // Get everything after /upload/v{version}/
+    const publicIdWithExtension = urlParts.slice(uploadIndex + 2).join('/');
+    
+    // Remove file extension
+    const publicId = publicIdWithExtension.replace(/\.[^/.]+$/, '');
+    
+    return publicId;
+  } catch (error) {
+    console.error('Error extracting public_id:', error);
+    return null;
+  }
 }
 
 /**

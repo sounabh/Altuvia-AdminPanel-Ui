@@ -20,10 +20,16 @@ import {
   ArrowUp, 
   ArrowDown, 
   Image as ImageIcon,
- 
+  Loader2,
 } from "lucide-react";
 import { UniversityImage } from "../types/university";
 import { toast } from "sonner";
+import { 
+  updateUniversityImage,
+  deleteUniversityImage,
+  setPrimaryUniversityImage,
+  reorderUniversityImages,
+} from "../actions/UniActions";
 
 interface UniversityImageManagerProps {
   universityId: string;
@@ -54,6 +60,7 @@ export function UniversityImageManager({
   
   const [editingImage, setEditingImage] = useState<ImageFormData | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const imageTypes = [
@@ -68,7 +75,7 @@ export function UniversityImageManager({
   ];
 
   /**
-   * Handle file upload
+   * Handle file upload to Cloudinary
    */
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -88,50 +95,60 @@ export function UniversityImageManager({
 
     try {
       setIsUploading(true);
+      setUploadProgress(0);
       
       // Create FormData for upload
       const formData = new FormData();
       formData.append('file', file);
       formData.append('universityId', universityId);
+      formData.append('imageType', 'other');
+      formData.append('imageTitle', file.name);
+      formData.append('imageAltText', file.name);
+      formData.append('imageCaption', '');
+      formData.append('isPrimary', (images.length === 0).toString());
       
-      // Call your upload API endpoint
+      // Simulate upload progress
+      const progressInterval = setInterval(() => {
+        setUploadProgress(prev => {
+          if (prev >= 90) {
+            clearInterval(progressInterval);
+            return 90;
+          }
+          return prev + 10;
+        });
+      }, 200);
+
+      // Call upload API endpoint
       const response = await fetch('/api/upload/university-image', {
         method: 'POST',
         body: formData,
       });
 
+      clearInterval(progressInterval);
+      setUploadProgress(100);
+
       if (!response.ok) {
-        throw new Error('Upload failed');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Upload failed');
       }
 
-      const { imageUrl } = await response.json();
+      const result = await response.json();
       
-      // Create new image entry
-      const newImage: UniversityImage = {
-        id: `temp-${Date.now()}`, // Temporary ID
-        universityId,
-        imageUrl,
-        imageType: "other",
-        imageTitle: file.name,
-        imageAltText: file.name,
-        imageCaption: "",
-        isPrimary: images.length === 0, // First image is primary
-        displayOrder: images.length,
-        createdAt: new Date(),
-        fileSize: file.size,
-        width: null,  
-        height: null,
-        university: undefined, // Will be populated later
-      };
-
-      onImagesChange([...images, newImage]);
+      // Add new image to the list
+      onImagesChange([...images, result.image]);
       toast.success("Image uploaded successfully");
       
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      
     } catch (error) {
-      toast.error("Failed to upload image");
       console.error("Upload error:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to upload image");
     } finally {
       setIsUploading(false);
+      setUploadProgress(0);
     }
   };
 
@@ -154,60 +171,102 @@ export function UniversityImageManager({
   /**
    * Save edited image
    */
-  const saveEditedImage = () => {
+  const saveEditedImage = async () => {
     if (!editingImage) return;
 
-    const updatedImages = images.map(img => 
-      img.id === editingImage.id ? {
-        ...img,
+    try {
+      const result = await updateUniversityImage({
+        id: editingImage.id!,
+        universityId,
         imageType: editingImage.imageType,
         imageTitle: editingImage.imageTitle,
         imageAltText: editingImage.imageAltText,
         imageCaption: editingImage.imageCaption,
         isPrimary: editingImage.isPrimary,
-        displayOrder: editingImage.displayOrder,
-      } : img
-    );
-
-    // Ensure only one primary image
-    if (editingImage.isPrimary) {
-      updatedImages.forEach(img => {
-        if (img.id !== editingImage.id) {
-          img.isPrimary = false;
-        }
       });
-    }
 
-    onImagesChange(updatedImages);
-    setEditingImage(null);
-    toast.success("Image updated successfully");
+      if (result.success) {
+        // Update local state
+        const updatedImages = images.map(img => 
+          img.id === editingImage.id ? {
+            ...img,
+            imageType: editingImage.imageType,
+            imageTitle: editingImage.imageTitle,
+            imageAltText: editingImage.imageAltText,
+            imageCaption: editingImage.imageCaption,
+            isPrimary: editingImage.isPrimary,
+          } : editingImage.isPrimary ? { ...img, isPrimary: false } : img
+        );
+
+        onImagesChange(updatedImages);
+        setEditingImage(null);
+        toast.success("Image updated successfully");
+      } else {
+        toast.error(result.error || "Failed to update image");
+      }
+    } catch (error) {
+      console.error("Error updating image:", error);
+      toast.error("Failed to update image");
+    }
   };
 
   /**
    * Delete an image
    */
-  const deleteImage = (imageId: string) => {
-    const updatedImages = images.filter(img => img.id !== imageId);
-    onImagesChange(updatedImages);
-    toast.success("Image deleted successfully");
+  const deleteImage = async (imageId: string) => {
+    if (!confirm("Are you sure you want to delete this image?")) {
+      return;
+    }
+
+    try {
+      const result = await deleteUniversityImage(imageId, universityId);
+      
+      if (result.success) {
+        const updatedImages = images.filter(img => img.id !== imageId);
+        
+        // If deleted image was primary and there are remaining images, make first one primary
+        if (updatedImages.length > 0 && !updatedImages.some(img => img.isPrimary)) {
+          updatedImages[0].isPrimary = true;
+        }
+        
+        onImagesChange(updatedImages);
+        toast.success("Image deleted successfully");
+      } else {
+        toast.error(result.error || "Failed to delete image");
+      }
+    } catch (error) {
+      console.error("Error deleting image:", error);
+      toast.error("Failed to delete image");
+    }
   };
 
   /**
    * Set image as primary
    */
-  const setPrimaryImage = (imageId: string) => {
-    const updatedImages = images.map(img => ({
-      ...img,
-      isPrimary: img.id === imageId,
-    }));
-    onImagesChange(updatedImages);
-    toast.success("Primary image updated");
+  const setPrimaryImage = async (imageId: string) => {
+    try {
+      const result = await setPrimaryUniversityImage(imageId, universityId);
+      
+      if (result.success) {
+        const updatedImages = images.map(img => ({
+          ...img,
+          isPrimary: img.id === imageId,
+        }));
+        onImagesChange(updatedImages);
+        toast.success("Primary image updated");
+      } else {
+        toast.error(result.error || "Failed to update primary image");
+      }
+    } catch (error) {
+      console.error("Error setting primary image:", error);
+      toast.error("Failed to update primary image");
+    }
   };
 
   /**
    * Move image up in display order
    */
-  const moveImageUp = (imageId: string) => {
+  const moveImageUp = async (imageId: string) => {
     const imageIndex = images.findIndex(img => img.id === imageId);
     if (imageIndex > 0) {
       const updatedImages = [...images];
@@ -215,18 +274,36 @@ export function UniversityImageManager({
       [updatedImages[imageIndex - 1], updatedImages[imageIndex]];
       
       // Update display orders
-      updatedImages.forEach((img, index) => {
-        img.displayOrder = index;
-      });
+      const imageOrders = updatedImages.map((img, index) => ({
+        id: img.id,
+        displayOrder: index,
+      }));
       
-      onImagesChange(updatedImages);
+      try {
+        const result = await reorderUniversityImages({
+          universityId,
+          imageOrders,
+        });
+        
+        if (result.success) {
+          updatedImages.forEach((img, index) => {
+            img.displayOrder = index;
+          });
+          onImagesChange(updatedImages);
+        } else {
+          toast.error(result.error || "Failed to reorder images");
+        }
+      } catch (error) {
+        console.error("Error reordering images:", error);
+        toast.error("Failed to reorder images");
+      }
     }
   };
 
   /**
    * Move image down in display order
    */
-  const moveImageDown = (imageId: string) => {
+  const moveImageDown = async (imageId: string) => {
     const imageIndex = images.findIndex(img => img.id === imageId);
     if (imageIndex < images.length - 1) {
       const updatedImages = [...images];
@@ -234,11 +311,29 @@ export function UniversityImageManager({
       [updatedImages[imageIndex + 1], updatedImages[imageIndex]];
       
       // Update display orders
-      updatedImages.forEach((img, index) => {
-        img.displayOrder = index;
-      });
+      const imageOrders = updatedImages.map((img, index) => ({
+        id: img.id,
+        displayOrder: index,
+      }));
       
-      onImagesChange(updatedImages);
+      try {
+        const result = await reorderUniversityImages({
+          universityId,
+          imageOrders,
+        });
+        
+        if (result.success) {
+          updatedImages.forEach((img, index) => {
+            img.displayOrder = index;
+          });
+          onImagesChange(updatedImages);
+        } else {
+          toast.error(result.error || "Failed to reorder images");
+        }
+      } catch (error) {
+        console.error("Error reordering images:", error);
+        toast.error("Failed to reorder images");
+      }
     }
   };
 
@@ -266,9 +361,30 @@ export function UniversityImageManager({
             disabled={isUploading}
             className="w-full"
           >
-            <Upload className="h-4 w-4 mr-2" />
-            {isUploading ? "Uploading..." : "Upload Image"}
+            {isUploading ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Uploading... {uploadProgress}%
+              </>
+            ) : (
+              <>
+                <Upload className="h-4 w-4 mr-2" />
+                Upload Image
+              </>
+            )}
           </Button>
+          
+          {/* Upload Progress */}
+          {isUploading && (
+            <div className="mt-2">
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div 
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${uploadProgress}%` }}
+                ></div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Images Grid */}
@@ -283,11 +399,12 @@ export function UniversityImageManager({
                     src={image.imageUrl}
                     alt={image.imageAltText}
                     className="w-full h-32 object-cover rounded"
+                    loading="lazy"
                   />
                   
                   {/* Primary Badge */}
                   {image.isPrimary && (
-                    <Badge className="absolute top-2 left-2">
+                    <Badge className="absolute top-2 left-2 bg-yellow-500">
                       <Star className="h-3 w-3 mr-1" />
                       Primary
                     </Badge>
@@ -309,6 +426,11 @@ export function UniversityImageManager({
                   <p className="text-xs text-gray-500 truncate">
                     {image.imageCaption || "No caption"}
                   </p>
+                  {image.fileSize && (
+                    <p className="text-xs text-gray-400">
+                      {(image.fileSize / 1024 / 1024).toFixed(2)} MB
+                    </p>
+                  )}
                 </div>
 
                 {/* Actions */}
@@ -318,6 +440,7 @@ export function UniversityImageManager({
                       size="sm"
                       variant="outline"
                       onClick={() => startEditingImage(image)}
+                      title="Edit image"
                     >
                       <Edit className="h-3 w-3" />
                     </Button>
@@ -327,6 +450,7 @@ export function UniversityImageManager({
                         size="sm"
                         variant="outline"
                         onClick={() => setPrimaryImage(image.id)}
+                        title="Set as primary"
                       >
                         <Star className="h-3 w-3" />
                       </Button>
@@ -339,6 +463,7 @@ export function UniversityImageManager({
                       variant="outline"
                       onClick={() => moveImageUp(image.id)}
                       disabled={images.findIndex(img => img.id === image.id) === 0}
+                      title="Move up"
                     >
                       <ArrowUp className="h-3 w-3" />
                     </Button>
@@ -348,6 +473,7 @@ export function UniversityImageManager({
                       variant="outline"
                       onClick={() => moveImageDown(image.id)}
                       disabled={images.findIndex(img => img.id === image.id) === images.length - 1}
+                      title="Move down"
                     >
                       <ArrowDown className="h-3 w-3" />
                     </Button>
@@ -356,6 +482,7 @@ export function UniversityImageManager({
                       size="sm"
                       variant="outline"
                       onClick={() => deleteImage(image.id)}
+                      title="Delete image"
                     >
                       <X className="h-3 w-3 text-red-500" />
                     </Button>
@@ -367,7 +494,7 @@ export function UniversityImageManager({
         </div>
 
         {/* No Images Message */}
-        {images.length === 0 && (
+        {images.length === 0 && !isUploading && (
           <div className="text-center py-8 text-gray-500">
             <ImageIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
             <p>No images uploaded yet. Click Upload Image to add your first image.</p>
@@ -376,9 +503,16 @@ export function UniversityImageManager({
 
         {/* Edit Image Modal */}
         {editingImage && (
-          <Card className="mt-6">
+          <Card className="mt-6 border-2 border-blue-200">
             <CardHeader>
               <CardTitle>Edit Image</CardTitle>
+              <div className="relative">
+                <img
+                  src={editingImage.imageUrl}
+                  alt={editingImage.imageAltText}
+                  className="w-full h-40 object-cover rounded"
+                />
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               
@@ -392,6 +526,7 @@ export function UniversityImageManager({
                       ...editingImage,
                       imageTitle: e.target.value,
                     })}
+                    placeholder="Enter image title"
                   />
                 </div>
                 
@@ -419,7 +554,7 @@ export function UniversityImageManager({
               </div>
 
               <div>
-                <Label htmlFor="imageAltText">Alt Text</Label>
+                <Label htmlFor="imageAltText">Alt Text *</Label>
                 <Input
                   id="imageAltText"
                   value={editingImage.imageAltText}
@@ -428,6 +563,7 @@ export function UniversityImageManager({
                     imageAltText: e.target.value,
                   })}
                   placeholder="Describe the image for accessibility"
+                  required
                 />
               </div>
 

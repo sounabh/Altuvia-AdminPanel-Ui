@@ -1,211 +1,331 @@
 // components/university/UniversityTable.tsx
+"use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+import { 
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableHead, 
+  TableHeader, 
+  TableRow 
 } from "@/components/ui/table";
-
-import { Edit, Trash2, Star, MapPin, DollarSign } from "lucide-react";
-
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuTrigger 
+} from "@/components/ui/dropdown-menu";
+import { 
+  Edit, 
+  Trash2, 
+  Star, 
+  StarOff, 
+  MoreHorizontal, 
+  ExternalLink,
+  Image as ImageIcon,
+  MapPin,
+  DollarSign,
+  Calendar
+} from "lucide-react";
 import { University } from "../types/university";
 
 interface UniversityTableProps {
-  universities: University[]; // List of universities to display
-  onEdit: (university: University) => void; // Callback to edit university
-  onDelete: (id: string) => void; // Callback to delete university
-  onToggleFeatured: (id: string) => void; // Callback to toggle featured status
+  universities: University[];
+  onEdit: (university: University) => void;
+  onDelete: (id: string) => void;
+  onToggleFeatured: (id: string) => void;
+  onManageImages?: (university: University) => void;
 }
 
-/**
- * UniversityTable
- * ----------------
- * Displays university information in a table format with actions.
- * Shows name, location, rankings, cost, status, and allows edit/feature/delete.
- */
-export function UniversityTable({
-  universities,
-  onEdit,
-  onDelete,
+export function UniversityTable({ 
+  universities, 
+  onEdit, 
+  onDelete, 
   onToggleFeatured,
+  onManageImages
 }: UniversityTableProps) {
-  /**
-   * Formats cost into a readable currency string
-   */
-  const formatCurrency = (amount: number | undefined, currency: string) => {
-    if (!amount) return "N/A";
-    return `${amount.toLocaleString()} ${currency}`;
+  
+  const [sortField, setSortField] = useState<keyof University>('createdAt');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+
+  const handleSort = (field: keyof University) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
   };
 
-  /**
-   * Returns badges for available rankings
-   */
-  const getRankingBadges = (university: University) => {
-    const badges = [];
-
-    if (university.ftGlobalRanking) {
-      badges.push(
-        <Badge key="ft" variant="outline">
-          FT #{university.ftGlobalRanking}
-        </Badge>
-      );
+  const sortedUniversities = [...universities].sort((a, b) => {
+    const aValue = a[sortField];
+    const bValue = b[sortField];
+    
+    if (aValue === null || aValue === undefined) return 1;
+    if (bValue === null || bValue === undefined) return -1;
+    
+    if (typeof aValue === 'string' && typeof bValue === 'string') {
+      return sortDirection === 'asc' 
+        ? aValue.localeCompare(bValue)
+        : bValue.localeCompare(aValue);
+    }
+    
+    if (typeof aValue === 'number' && typeof bValue === 'number') {
+      return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
+    }
+    
+    if (aValue instanceof Date && bValue instanceof Date) {
+      return sortDirection === 'asc' 
+        ? aValue.getTime() - bValue.getTime()
+        : bValue.getTime() - aValue.getTime();
     }
 
-    if (university.qsRanking) {
-      badges.push(
-        <Badge key="qs" variant="outline">
-          QS #{university.qsRanking}
-        </Badge>
-      );
-    }
+    return 0;
+  });
 
-    if (university.usNewsRanking) {
-      badges.push(
-        <Badge key="us" variant="outline">
-          US #{university.usNewsRanking}
-        </Badge>
-      );
-    }
-
-    return badges;
+  const formatDate = (date: Date | string | null) => {
+    if (!date) return 'N/A';
+    const d = new Date(date);
+    return d.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
   };
+
+  const formatCurrency = (amount: number | null, currency: string = 'USD') => {
+    if (!amount) return 'N/A';
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: currency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  };
+
+  const getImageCount = (university: University) => {
+    return university.images?.length || 0;
+  };
+
+  const getPrimaryImage = (university: University) => {
+    return university.images?.find(img => img.isPrimary);
+  };
+
+  if (universities.length === 0) {
+    return (
+      <Card>
+        <CardContent className="text-center py-8">
+          <p className="text-gray-500">No universities found matching your criteria.</p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Universities ({universities.length})</CardTitle>
+        <CardTitle>
+          Universities ({universities.length})
+        </CardTitle>
       </CardHeader>
-
       <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>University</TableHead>
-              <TableHead>Location</TableHead>
-              <TableHead>Rankings</TableHead>
-              <TableHead>Cost</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-
-          <TableBody>
-            {universities.map((university) => (
-              <TableRow key={university.id}>
-                {/* University Name and Short Description */}
-                <TableCell>
-                  <div>
-                    <div className="font-medium">
-                      {university.universityName}
-                    </div>
-                    <div className="text-sm text-gray-500">
-                      {university.shortDescription}
-                    </div>
-                  </div>
-                </TableCell>
-
-                {/* Location with Icon */}
-                <TableCell>
-                  <div className="flex items-center">
-                    <MapPin className="h-4 w-4 mr-1" />
-                    <span>
-                      {university.city}
-                      {university.state && `, ${university.state}`},{" "}
-                      {university.country}
-                    </span>
-                  </div>
-                </TableCell>
-
-                {/* Ranking Badges */}
-                <TableCell>
-                  <div className="space-y-1">
-                    {getRankingBadges(university)}
-                  </div>
-                </TableCell>
-
-                {/* Cost Display */}
-                <TableCell>
-                  <div className="flex items-center">
-                    <DollarSign className="h-4 w-4 mr-1" />
-                    <span>
-                      {formatCurrency(
-                        university.totalCost ?? undefined, // Convert null to undefined
-                        university.currency
-                      )}
-                    </span>
-                  </div>
-                </TableCell>
-
-                {/* Status and Featured Badge */}
-                <TableCell>
-                  <div className="flex space-x-2">
-                    <Badge
-                      variant={university.isActive ? "default" : "secondary"}
-                    >
-                      {university.isActive ? "Active" : "Inactive"}
-                    </Badge>
-
-                    {university.isFeatured && (
-                      <Badge variant="outline">
-                        <Star className="h-3 w-3 mr-1" />
-                        Featured
-                      </Badge>
-                    )}
-                  </div>
-                </TableCell>
-
-                {/* Action Buttons */}
-                <TableCell>
-                  <div className="flex space-x-2">
-                    {/* Edit Button */}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => onEdit(university)}
-                      title="Edit university"
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-
-                    {/* Toggle Featured Button */}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => onToggleFeatured(university.id)}
-                      title="Toggle featured status"
-                    >
-                      <Star
-                        className={`h-4 w-4 ${
-                          university.isFeatured
-                            ? "fill-current text-yellow-500"
-                            : ""
-                        }`}
-                      />
-                    </Button>
-
-                    {/* Delete Button */}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => onDelete(university.id)}
-                      title="Delete university"
-                    >
-                      <Trash2 className="h-4 w-4 text-red-500" />
-                    </Button>
-                  </div>
-                </TableCell>
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-12">Image</TableHead>
+                <TableHead 
+                  className="cursor-pointer hover:bg-gray-50"
+                  onClick={() => handleSort('universityName')}
+                >
+                  University Name
+                </TableHead>
+                <TableHead 
+                  className="cursor-pointer hover:bg-gray-50"
+                  onClick={() => handleSort('city')}
+                >
+                  Location
+                </TableHead>
+                <TableHead className="text-center">Rankings</TableHead>
+                <TableHead className="text-center">Fees</TableHead>
+                <TableHead className="text-center">Status</TableHead>
+                <TableHead className="text-center">Images</TableHead>
+                <TableHead 
+                  className="cursor-pointer hover:bg-gray-50"
+                  onClick={() => handleSort('createdAt')}
+                >
+                  Created
+                </TableHead>
+                <TableHead className="text-center">Actions</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {sortedUniversities.map((university) => {
+                const primaryImage = getPrimaryImage(university);
+                const imageCount = getImageCount(university);
+                
+                return (
+                  <TableRow key={university.id} className="hover:bg-gray-50">
+                    {/* Primary Image */}
+                    <TableCell>
+                      {primaryImage ? (
+                        <img
+                          src={primaryImage.imageUrl}
+                          alt={primaryImage.imageAltText}
+                          className="w-12 h-12 object-cover rounded"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 bg-gray-200 rounded flex items-center justify-center">
+                          <ImageIcon className="h-4 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </TableCell>
+
+                    {/* University Name */}
+                    <TableCell>
+                      <div className="space-y-1">
+                        <div className="font-medium">{university.universityName}</div>
+                        <div className="text-sm text-gray-500 truncate max-w-xs">
+                          {university.shortDescription || 'No description'}
+                        </div>
+                        {university.websiteUrl && (
+                          <a
+                            href={university.websiteUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center text-xs text-blue-600 hover:text-blue-800"
+                          >
+                            <ExternalLink className="h-3 w-3 mr-1" />
+                            Website
+                          </a>
+                        )}
+                      </div>
+                    </TableCell>
+
+                    {/* Location */}
+                    <TableCell>
+                      <div className="flex items-center text-sm">
+                        <MapPin className="h-3 w-3 mr-1 text-gray-400" />
+                        <div>
+                          {university.city}
+                          {university.state && `, ${university.state}`}
+                          {university.country && `, ${university.country}`}
+                        </div>
+                      </div>
+                    </TableCell>
+
+                    {/* Rankings */}
+                    <TableCell className="text-center">
+                      <div className="space-y-1">
+                        {university.ftGlobalRanking && (
+                          <Badge variant="outline" className="text-xs">
+                            FT: #{university.ftGlobalRanking}
+                          </Badge>
+                        )}
+                        {university.qsRanking && (
+                          <Badge variant="outline" className="text-xs">
+                            QS: #{university.qsRanking}
+                          </Badge>
+                        )}
+                        {university.usNewsRanking && (
+                          <Badge variant="outline" className="text-xs">
+                            US: #{university.usNewsRanking}
+                          </Badge>
+                        )}
+                        {!university.ftGlobalRanking && !university.qsRanking && !university.usNewsRanking && (
+                          <span className="text-gray-400 text-xs">No rankings</span>
+                        )}
+                      </div>
+                    </TableCell>
+
+                    {/* Fees */}
+                    <TableCell className="text-center">
+                      <div className="flex items-center justify-center text-sm">
+                        <DollarSign className="h-4 w-4 mr-1 text-gray-500" />
+                        <span>
+                          {formatCurrency(Number(university.tuitionFees), university.currency)}
+                        </span>
+                      </div>
+                    </TableCell>
+
+                    {/* Status */}
+                    <TableCell className="text-center">
+                      <div className="flex justify-center space-x-2">
+                        <Badge variant={university.isActive ? 'default' : 'secondary'}>
+                          {university.isActive ? 'Active' : 'Inactive'}
+                        </Badge>
+                        {university.isFeatured && (
+                          <Badge variant="outline">
+                            <Star className="h-3 w-3 mr-1 fill-current text-yellow-500" />
+                            Featured
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
+
+                    {/* Images */}
+                    <TableCell className="text-center">
+                      <Badge variant="secondary">
+                        {imageCount} image{imageCount !== 1 ? 's' : ''}
+                      </Badge>
+                    </TableCell>
+
+                    {/* Created */}
+                    <TableCell className="text-sm">
+                      <div className="flex items-center">
+                        <Calendar className="h-3 w-3 mr-1 text-gray-500" />
+                        {formatDate(university.createdAt)}
+                      </div>
+                    </TableCell>
+
+                    {/* Actions */}
+                    <TableCell className="text-center">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => onEdit(university)}>
+                            <Edit className="h-4 w-4 mr-2" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => onToggleFeatured(university.id)}>
+                            {university.isFeatured ? (
+                              <StarOff className="h-4 w-4 mr-2 text-yellow-500" />
+                            ) : (
+                              <Star className="h-4 w-4 mr-2" />
+                            )}
+                            {university.isFeatured ? 'Unfeature' : 'Feature'}
+                          </DropdownMenuItem>
+                          {onManageImages && (
+                            <DropdownMenuItem onClick={() => onManageImages(university)}>
+                              <ImageIcon className="h-4 w-4 mr-2" />
+                              Manage Images
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuItem 
+                            className="text-red-600"
+                            onClick={() => onDelete(university.id)}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
       </CardContent>
     </Card>
   );
