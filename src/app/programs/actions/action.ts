@@ -2,7 +2,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 'use server'
 
-
 import { revalidatePath } from 'next/cache'
 import type {
   Department,
@@ -178,7 +177,6 @@ export async function getProgramById(id: string): Promise<ProgramWithFullRelatio
         scholarships: { where: { isActive: true } },
         feeStructures: true,
         financialAids: { where: { isActive: true } },
-        // ✅ Add this:
         _count: {
           select: {
             admissions: true,
@@ -196,14 +194,19 @@ export async function getProgramById(id: string): Promise<ProgramWithFullRelatio
   }
 }
 
-
 // Syllabus Actions
 export async function uploadSyllabus(data: CreateSyllabusInput): Promise<ActionResult<Syllabus>> {
   try {
     const syllabus = await prisma.syllabus.upsert({
       where: { programId: data.programId },
-      update: { fileUrl: data.fileUrl },
-      create: data,
+      update: { 
+        fileUrl: data.fileUrl,
+        uploadedAt: new Date() // Update the upload timestamp
+      },
+      create: {
+        ...data,
+        uploadedAt: new Date() // Ensure uploadedAt is set for new records
+      },
     })
     revalidatePath(`/programs/${data.programId}`)
     return { success: true, data: syllabus }

@@ -37,7 +37,7 @@ export interface Syllabus {
   id: string;
   programId: string;
   fileUrl: string;
-  uploadedAt: Date;
+  uploadedAt: string | Date;
 }
 
 export interface ProgramRanking {

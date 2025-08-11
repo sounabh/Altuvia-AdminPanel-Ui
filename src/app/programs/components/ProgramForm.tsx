@@ -1,6 +1,8 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // app/program-management/components/ProgramForm.tsx
 import React from 'react';
 import { GraduationCap, X } from 'lucide-react';
+import SyllabusUpload from './SyllabusUpload';
 import type { 
   ProgramWithFullRelations, 
   CreateProgramInput, 
@@ -31,49 +33,85 @@ const ProgramForm: React.FC<ProgramFormProps> = ({
   const [selectedUniversity, setSelectedUniversity] = React.useState(
     program?.universityId || ''
   );
+
+  // State for syllabus to trigger re-render with proper initial state
+  const [currentSyllabus, setCurrentSyllabus] = React.useState(
+    program?.syllabus ? {
+      id: program.syllabus.id || '',
+      fileUrl: program.syllabus.fileUrl || '',
+      uploadedAt: program.syllabus.uploadedAt || new Date().toISOString()
+    } : null
+  );
+
+  // Update syllabus state when program prop changes
+  React.useEffect(() => {
+    if (program?.syllabus) {
+      setCurrentSyllabus({
+        id: program.syllabus.id || '',
+        fileUrl: program.syllabus.fileUrl || '',
+        uploadedAt: program.syllabus.uploadedAt || new Date().toISOString()
+      });
+    } else {
+      setCurrentSyllabus(null);
+    }
+  }, [program?.syllabus]);
   
   const filteredDepartments = departments.filter(
     dept => dept.universityId === selectedUniversity
   );
 
- const handleSubmit = (e: React.FormEvent) => {
-  e.preventDefault();
-  const formData = new FormData(e.target as HTMLFormElement);
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const formData = new FormData(e.target as HTMLFormElement);
 
-  const baseData = {
-    universityId: formData.get('universityId') as string,
-    departmentId: formData.get('departmentId') as string,
-    programName: formData.get('programName') as string,
-    programSlug: formData.get('programSlug') as string,
-    degreeType: formData.get('degreeType') as string || undefined,
-    programLength: parseInt(formData.get('programLength') as string) || undefined,
-    specializations: formData.get('specializations') as string || undefined,
-    programDescription: formData.get('programDescription') as string || undefined,
-    curriculumOverview: formData.get('curriculumOverview') as string || undefined,
-    admissionRequirements: formData.get('admissionRequirements') as string || undefined,
-    averageEntranceScore: parseInt(formData.get('averageEntranceScore') as string) || undefined,
-    programTuitionFees: parseInt(formData.get('programTuitionFees') as string) || undefined,
-    programAdditionalFees: parseInt(formData.get('programAdditionalFees') as string) || undefined,
-    programMetaTitle: formData.get('programMetaTitle') as string || undefined,
-    programMetaDescription: formData.get('programMetaDescription') as string || undefined,
-    isActive: formData.get('isActive') === 'on'
+    const baseData = {
+      universityId: formData.get('universityId') as string,
+      departmentId: formData.get('departmentId') as string,
+      programName: formData.get('programName') as string,
+      programSlug: formData.get('programSlug') as string,
+      degreeType: formData.get('degreeType') as string || undefined,
+      programLength: parseInt(formData.get('programLength') as string) || undefined,
+      specializations: formData.get('specializations') as string || undefined,
+      programDescription: formData.get('programDescription') as string || undefined,
+      curriculumOverview: formData.get('curriculumOverview') as string || undefined,
+      admissionRequirements: formData.get('admissionRequirements') as string || undefined,
+      averageEntranceScore: parseInt(formData.get('averageEntranceScore') as string) || undefined,
+      programTuitionFees: parseInt(formData.get('programTuitionFees') as string) || undefined,
+      programAdditionalFees: parseInt(formData.get('programAdditionalFees') as string) || undefined,
+      programMetaTitle: formData.get('programMetaTitle') as string || undefined,
+      programMetaDescription: formData.get('programMetaDescription') as string || undefined,
+      isActive: formData.get('isActive') === 'on'
+    };
+
+    if (isEditing && program?.id) {
+      const updateData: UpdateProgramInput = {
+        id: program.id,
+        ...baseData
+      };
+      onSubmit(updateData);
+    } else {
+      const createData: CreateProgramInput = baseData;
+      onSubmit(createData);
+    }
   };
 
-  if (isEditing && program?.id) {
-    const updateData: UpdateProgramInput = {
-      id: program.id,
-      ...baseData
-    };
-    onSubmit(updateData);
-  } else {
-    const createData: CreateProgramInput = baseData;
-    onSubmit(createData);
-  }
-};
+  const handleSyllabusUploadSuccess = (syllabus: any) => {
+    console.log('Syllabus upload success:', syllabus);
+    setCurrentSyllabus({
+      id: syllabus.id,
+      fileUrl: syllabus.fileUrl,
+      uploadedAt: syllabus.uploadedAt || new Date().toISOString()
+    });
+  };
+
+  const handleSyllabusDeleteSuccess = () => {
+    console.log('Syllabus deleted successfully');
+    setCurrentSyllabus(null);
+  };
 
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
+    <div className="p-6 max-h-screen overflow-y-auto">
+      <div className="flex justify-between items-center mb-6 sticky top-0 bg-white pb-4 border-b">
         <h2 className="text-xl font-bold text-gray-900 flex items-center">
           <GraduationCap className="h-5 w-5 text-green-600 mr-2" />
           {isEditing ? 'Edit Program' : 'Create New Program'}
@@ -84,12 +122,12 @@ const ProgramForm: React.FC<ProgramFormProps> = ({
       </div>
 
       <form onSubmit={handleSubmit}>
-        <div className="grid grid-cols-1 gap-6 mb-6">
+        <div className="space-y-6 mb-6">
           {/* University and Department */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label htmlFor="universityId" className="block text-sm font-medium text-gray-700 mb-1">
-                University
+                University <span className="text-red-500">*</span>
               </label>
               <select
                 id="universityId"
@@ -111,7 +149,7 @@ const ProgramForm: React.FC<ProgramFormProps> = ({
             
             <div>
               <label htmlFor="departmentId" className="block text-sm font-medium text-gray-700 mb-1">
-                Department
+                Department <span className="text-red-500">*</span>
               </label>
               <select
                 id="departmentId"
@@ -119,7 +157,7 @@ const ProgramForm: React.FC<ProgramFormProps> = ({
                 defaultValue={program?.departmentId || ''}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 required
-               
+                disabled={loading || !selectedUniversity}
               >
                 <option value="">Select Department</option>
                 {filteredDepartments.map((department) => (
@@ -128,6 +166,9 @@ const ProgramForm: React.FC<ProgramFormProps> = ({
                   </option>
                 ))}
               </select>
+              {!selectedUniversity && (
+                <p className="mt-1 text-xs text-gray-500">Please select a university first</p>
+              )}
             </div>
           </div>
           
@@ -135,7 +176,7 @@ const ProgramForm: React.FC<ProgramFormProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label htmlFor="programName" className="block text-sm font-medium text-gray-700 mb-1">
-                Program Name
+                Program Name <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
@@ -151,7 +192,7 @@ const ProgramForm: React.FC<ProgramFormProps> = ({
             
             <div>
               <label htmlFor="programSlug" className="block text-sm font-medium text-gray-700 mb-1">
-                URL Slug
+                URL Slug <span className="text-red-500">*</span>
               </label>
               <div className="mt-1 flex rounded-md shadow-sm">
                 <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-gray-300 bg-gray-50 text-gray-500 sm:text-sm">
@@ -211,7 +252,7 @@ const ProgramForm: React.FC<ProgramFormProps> = ({
             </div>
           </div>
           
-          {/* Specializations and Description */}
+          {/* Specializations */}
           <div>
             <label htmlFor="specializations" className="block text-sm font-medium text-gray-700 mb-1">
               Specializations
@@ -227,6 +268,7 @@ const ProgramForm: React.FC<ProgramFormProps> = ({
             />
           </div>
           
+          {/* Program Description */}
           <div>
             <label htmlFor="programDescription" className="block text-sm font-medium text-gray-700 mb-1">
               Program Description
@@ -274,6 +316,19 @@ const ProgramForm: React.FC<ProgramFormProps> = ({
               />
             </div>
           </div>
+          
+          {/* Syllabus Upload Section - Only show if program exists (for editing) */}
+          {isEditing && program?.id && (
+            <div className="bg-gray-50 p-4 rounded-lg border">
+              <SyllabusUpload
+                key={`syllabus-${currentSyllabus?.fileUrl || 'none'}`} // Force re-render on syllabus change
+                programId={program.id}
+                existingSyllabus={currentSyllabus}
+                onUploadSuccess={handleSyllabusUploadSuccess}
+                onDeleteSuccess={handleSyllabusDeleteSuccess}
+              />
+            </div>
+          )}
           
           {/* Fees and Scores */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -329,34 +384,42 @@ const ProgramForm: React.FC<ProgramFormProps> = ({
           </div>
           
           {/* SEO Metadata */}
-          <div>
-            <label htmlFor="programMetaTitle" className="block text-sm font-medium text-gray-700 mb-1">
-              SEO Title
-            </label>
-            <input
-              type="text"
-              id="programMetaTitle"
-              name="programMetaTitle"
-              defaultValue={program?.programMetaTitle || ''}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Meta title for SEO"
-              disabled={loading}
-            />
-          </div>
-          
-          <div>
-            <label htmlFor="programMetaDescription" className="block text-sm font-medium text-gray-700 mb-1">
-              SEO Description
-            </label>
-            <textarea
-              id="programMetaDescription"
-              name="programMetaDescription"
-              defaultValue={program?.programMetaDescription || ''}
-              rows={2}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Meta description for SEO"
-              disabled={loading}
-            />
+          <div className="space-y-4">
+            <h4 className="text-md font-medium text-gray-900 border-b pb-2">SEO Metadata</h4>
+            
+            <div>
+              <label htmlFor="programMetaTitle" className="block text-sm font-medium text-gray-700 mb-1">
+                SEO Title
+              </label>
+              <input
+                type="text"
+                id="programMetaTitle"
+                name="programMetaTitle"
+                defaultValue={program?.programMetaTitle || ''}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Meta title for SEO"
+                disabled={loading}
+                maxLength={60}
+              />
+              <p className="mt-1 text-xs text-gray-500">Recommended: 50-60 characters</p>
+            </div>
+            
+            <div>
+              <label htmlFor="programMetaDescription" className="block text-sm font-medium text-gray-700 mb-1">
+                SEO Description
+              </label>
+              <textarea
+                id="programMetaDescription"
+                name="programMetaDescription"
+                defaultValue={program?.programMetaDescription || ''}
+                rows={2}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Meta description for SEO"
+                disabled={loading}
+                maxLength={160}
+              />
+              <p className="mt-1 text-xs text-gray-500">Recommended: 150-160 characters</p>
+            </div>
           </div>
           
           {/* Status */}
@@ -372,35 +435,50 @@ const ProgramForm: React.FC<ProgramFormProps> = ({
             <label htmlFor="isActive" className="ml-2 block text-sm text-gray-900">
               Active Program
             </label>
+            <span className="ml-2 text-xs text-gray-500">
+              (Inactive programs won&apos;t be displayed to students)
+            </span>
           </div>
         </div>
         
-        <div className="flex justify-end space-x-3">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={loading}
-            className="px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={loading}
-            className="px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
-          >
-            {loading ? (
-              <span className="flex items-center">
-                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                {isEditing ? 'Updating...' : 'Creating...'}
-              </span>
-            ) : isEditing ? 'Update Program' : 'Create Program'}
-          </button>
+        {/* Action Buttons */}
+        <div className="sticky bottom-0 bg-white pt-4 border-t">
+          <div className="flex justify-end space-x-3">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={loading}
+              className="px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 min-w-[120px]"
+            >
+              {loading ? (
+                <span className="flex items-center">
+                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  {isEditing ? 'Updating...' : 'Creating...'}
+                </span>
+              ) : isEditing ? 'Update Program' : 'Create Program'}
+            </button>
+          </div>
         </div>
       </form>
+      
+      {/* Note for new programs */}
+      {!isEditing && (
+        <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+          <p className="text-sm text-blue-800">
+            <strong>Note:</strong> After creating the program, you&apos;ll be able to upload the syllabus and add additional details like rankings and external links.
+          </p>
+        </div>
+      )}
     </div>
   );
 };
