@@ -77,7 +77,7 @@ CREATE TABLE "universities" (
     "missionStatement" TEXT,
     "visionStatement" TEXT,
     "accreditationDetails" TEXT,
-    "whyChooseHighlights" TEXT,
+    "whyChooseHighlights" TEXT[],
     "careerOutcomes" TEXT,
     "ftGlobalRanking" INTEGER,
     "ftRegionalRanking" INTEGER,
@@ -109,6 +109,12 @@ CREATE TABLE "universities" (
     "isFeatured" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+    "averageDeadlines" TEXT,
+    "studentsPerYear" INTEGER,
+    "brochureUrl" TEXT,
+    "additionalDocumentUrls" TEXT[],
+    "averageProgramLengthMonths" INTEGER,
+    "intakes" TEXT,
 
     CONSTRAINT "universities_pkey" PRIMARY KEY ("id")
 );
@@ -291,6 +297,8 @@ CREATE TABLE "admission_deadlines" (
 CREATE TABLE "applications" (
     "id" TEXT NOT NULL,
     "admissionId" TEXT NOT NULL,
+    "universityId" TEXT NOT NULL,
+    "programId" TEXT NOT NULL,
     "intakeId" TEXT,
     "userId" TEXT,
     "firstName" TEXT NOT NULL,
@@ -309,9 +317,18 @@ CREATE TABLE "applications" (
     "workExperienceMonths" INTEGER,
     "workExperienceDetails" TEXT,
     "applicationStatus" TEXT NOT NULL DEFAULT 'DRAFT',
+    "currentStage" TEXT NOT NULL DEFAULT 'DRAFT',
+    "stageUpdatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "completionPercentage" DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    "nextDeadlineId" TEXT,
+    "completedDeadlines" TEXT,
+    "missedDeadlines" TEXT,
     "submissionDate" TIMESTAMP(3),
     "reviewDate" TIMESTAMP(3),
     "decisionDate" TIMESTAMP(3),
+    "lastActivityAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "applicationFeesPaid" BOOLEAN NOT NULL DEFAULT false,
+    "applicationFeesAmount" DOUBLE PRECISION,
     "documentsUploaded" TEXT,
     "documentsVerified" BOOLEAN NOT NULL DEFAULT false,
     "lastContactDate" TIMESTAMP(3),
@@ -323,15 +340,35 @@ CREATE TABLE "applications" (
 );
 
 -- CreateTable
+CREATE TABLE "application_progress" (
+    "id" TEXT NOT NULL,
+    "applicationId" TEXT NOT NULL,
+    "stageName" TEXT NOT NULL,
+    "stageStatus" TEXT NOT NULL,
+    "startedAt" TIMESTAMP(3),
+    "completedAt" TIMESTAMP(3),
+    "notes" TEXT,
+    "completedBy" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "application_progress_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "application_documents" (
     "id" TEXT NOT NULL,
     "applicationId" TEXT NOT NULL,
     "documentType" TEXT NOT NULL,
+    "documentCategory" TEXT NOT NULL,
     "documentTitle" TEXT NOT NULL,
     "fileName" TEXT NOT NULL,
     "fileUrl" TEXT NOT NULL,
     "fileSize" INTEGER,
     "mimeType" TEXT,
+    "isRequired" BOOLEAN NOT NULL DEFAULT false,
+    "submissionDeadline" TIMESTAMP(3),
+    "reminderSent" BOOLEAN NOT NULL DEFAULT false,
     "isVerified" BOOLEAN NOT NULL DEFAULT false,
     "verifiedBy" TEXT,
     "verifiedAt" TIMESTAMP(3),
@@ -634,6 +671,56 @@ CREATE TABLE "refresh_tokens" (
     CONSTRAINT "refresh_tokens_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "essay_prompts" (
+    "id" TEXT NOT NULL,
+    "admissionId" TEXT,
+    "programId" TEXT,
+    "intakeId" TEXT,
+    "promptTitle" TEXT NOT NULL,
+    "promptText" TEXT NOT NULL,
+    "wordLimit" INTEGER NOT NULL,
+    "minWordCount" INTEGER NOT NULL DEFAULT 0,
+    "isMandatory" BOOLEAN NOT NULL DEFAULT true,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "essay_prompts_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "essay_submissions" (
+    "id" TEXT NOT NULL,
+    "essayPromptId" TEXT NOT NULL,
+    "userId" TEXT,
+    "applicationId" TEXT,
+    "title" TEXT,
+    "content" TEXT NOT NULL,
+    "wordCount" INTEGER NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'DRAFT',
+    "submissionDate" TIMESTAMP(3),
+    "lastEditedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "isUsingTemplate" BOOLEAN NOT NULL DEFAULT false,
+    "templateVersion" TEXT,
+    "reviewStatus" TEXT DEFAULT 'PENDING',
+    "reviewerId" TEXT,
+    "reviewerComment" TEXT,
+    "internalRating" DOUBLE PRECISION,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "essay_submissions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "_UserSavedUniversities" (
+    "A" TEXT NOT NULL,
+    "B" TEXT NOT NULL,
+
+    CONSTRAINT "_UserSavedUniversities_AB_pkey" PRIMARY KEY ("A","B")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
 
@@ -665,6 +752,9 @@ CREATE UNIQUE INDEX "admissions_universityId_programId_key" ON "admissions"("uni
 CREATE UNIQUE INDEX "intakes_admissionId_intakeType_intakeYear_key" ON "intakes"("admissionId", "intakeType", "intakeYear");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "application_progress_applicationId_stageName_key" ON "application_progress"("applicationId", "stageName");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "tuition_breakdowns_universityId_programId_academicYear_year_key" ON "tuition_breakdowns"("universityId", "programId", "academicYear", "yearNumber");
 
 -- CreateIndex
@@ -679,110 +769,5 @@ CREATE UNIQUE INDEX "admin_users_email_key" ON "admin_users"("email");
 -- CreateIndex
 CREATE UNIQUE INDEX "refresh_tokens_token_key" ON "refresh_tokens"("token");
 
--- AddForeignKey
-ALTER TABLE "user_profiles" ADD CONSTRAINT "user_profiles_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "subscriptions" ADD CONSTRAINT "subscriptions_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "university_images" ADD CONSTRAINT "university_images_universityId_fkey" FOREIGN KEY ("universityId") REFERENCES "universities"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "departments" ADD CONSTRAINT "departments_universityId_fkey" FOREIGN KEY ("universityId") REFERENCES "universities"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "programs" ADD CONSTRAINT "programs_universityId_fkey" FOREIGN KEY ("universityId") REFERENCES "universities"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "programs" ADD CONSTRAINT "programs_departmentId_fkey" FOREIGN KEY ("departmentId") REFERENCES "departments"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "syllabi" ADD CONSTRAINT "syllabi_programId_fkey" FOREIGN KEY ("programId") REFERENCES "programs"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "program_rankings" ADD CONSTRAINT "program_rankings_programId_fkey" FOREIGN KEY ("programId") REFERENCES "programs"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "external_links" ADD CONSTRAINT "external_links_programId_fkey" FOREIGN KEY ("programId") REFERENCES "programs"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "admissions" ADD CONSTRAINT "admissions_universityId_fkey" FOREIGN KEY ("universityId") REFERENCES "universities"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "admissions" ADD CONSTRAINT "admissions_programId_fkey" FOREIGN KEY ("programId") REFERENCES "programs"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "intakes" ADD CONSTRAINT "intakes_admissionId_fkey" FOREIGN KEY ("admissionId") REFERENCES "admissions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "admission_deadlines" ADD CONSTRAINT "admission_deadlines_admissionId_fkey" FOREIGN KEY ("admissionId") REFERENCES "admissions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "admission_deadlines" ADD CONSTRAINT "admission_deadlines_intakeId_fkey" FOREIGN KEY ("intakeId") REFERENCES "intakes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "applications" ADD CONSTRAINT "applications_admissionId_fkey" FOREIGN KEY ("admissionId") REFERENCES "admissions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "applications" ADD CONSTRAINT "applications_intakeId_fkey" FOREIGN KEY ("intakeId") REFERENCES "intakes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "applications" ADD CONSTRAINT "applications_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "application_documents" ADD CONSTRAINT "application_documents_applicationId_fkey" FOREIGN KEY ("applicationId") REFERENCES "applications"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "interviews" ADD CONSTRAINT "interviews_applicationId_fkey" FOREIGN KEY ("applicationId") REFERENCES "applications"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "tuition_breakdowns" ADD CONSTRAINT "tuition_breakdowns_universityId_fkey" FOREIGN KEY ("universityId") REFERENCES "universities"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "tuition_breakdowns" ADD CONSTRAINT "tuition_breakdowns_programId_fkey" FOREIGN KEY ("programId") REFERENCES "programs"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "payment_schedules" ADD CONSTRAINT "payment_schedules_tuitionBreakdownId_fkey" FOREIGN KEY ("tuitionBreakdownId") REFERENCES "tuition_breakdowns"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "scholarships" ADD CONSTRAINT "scholarships_universityId_fkey" FOREIGN KEY ("universityId") REFERENCES "universities"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "scholarships" ADD CONSTRAINT "scholarships_programId_fkey" FOREIGN KEY ("programId") REFERENCES "programs"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "scholarship_documents" ADD CONSTRAINT "scholarship_documents_scholarshipId_fkey" FOREIGN KEY ("scholarshipId") REFERENCES "scholarships"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "scholarship_applications" ADD CONSTRAINT "scholarship_applications_scholarshipId_fkey" FOREIGN KEY ("scholarshipId") REFERENCES "scholarships"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "scholarship_applications" ADD CONSTRAINT "scholarship_applications_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "scholarship_applications" ADD CONSTRAINT "scholarship_applications_applicationId_fkey" FOREIGN KEY ("applicationId") REFERENCES "applications"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "fee_structures" ADD CONSTRAINT "fee_structures_universityId_fkey" FOREIGN KEY ("universityId") REFERENCES "universities"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "fee_structures" ADD CONSTRAINT "fee_structures_programId_fkey" FOREIGN KEY ("programId") REFERENCES "programs"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "financial_aids" ADD CONSTRAINT "financial_aids_universityId_fkey" FOREIGN KEY ("universityId") REFERENCES "universities"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "financial_aids" ADD CONSTRAINT "financial_aids_programId_fkey" FOREIGN KEY ("programId") REFERENCES "programs"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "financial_aid_applications" ADD CONSTRAINT "financial_aid_applications_financialAidId_fkey" FOREIGN KEY ("financialAidId") REFERENCES "financial_aids"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "financial_aid_applications" ADD CONSTRAINT "financial_aid_applications_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "financial_aid_applications" ADD CONSTRAINT "financial_aid_applications_applicationId_fkey" FOREIGN KEY ("applicationId") REFERENCES "applications"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "refresh_tokens" ADD CONSTRAINT "refresh_tokens_userId_fkey" FOREIGN KEY ("userId") REFERENCES "admin_users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+-- CreateIndex
+CREATE INDEX "_UserSavedUniversities_B_index" ON "_UserSavedUniversities"("B");
