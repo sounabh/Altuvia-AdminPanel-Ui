@@ -1,45 +1,142 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// app/program-management/components/ProgramForm.tsx
 import React from 'react';
-import { GraduationCap, X } from 'lucide-react';
-import SyllabusUpload from './SyllabusUpload';
-import type { 
-  ProgramWithFullRelations, 
-  CreateProgramInput, 
-  UpdateProgramInput, 
-  DepartmentWithPrograms
-} from '../types/programs';
+import { GraduationCap, X, Check } from 'lucide-react';
+
+// Types
+interface Department {
+  id: string;
+  universityId: string;
+  name: string;
+  slug: string;
+  _count?: {
+    programs: number;
+  };
+}
+
+interface University {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+interface Syllabus {
+  id: string;
+  fileUrl: string;
+  uploadedAt: string | Date;
+}
+
+interface ProgramWithRelations {
+  id: string;
+  universityId: string;
+  programName: string;
+  programSlug: string;
+  degreeType: string | null;
+  programLength: number | null;
+  specializations: string | null;
+  programDescription: string | null;
+  curriculumOverview: string | null;
+  admissionRequirements: string | null;
+  averageEntranceScore: number | null;
+  programTuitionFees: number | null;
+  programAdditionalFees: number | null;
+  programMetaTitle: string | null;
+  programMetaDescription: string | null;
+  isActive: boolean;
+  departments?: Array<{
+    department: Department;
+  }>;
+  syllabus?: Syllabus | null;
+}
+
+interface CreateProgramInput {
+  universityId: string;
+  departmentIds: string[];
+  programName: string;
+  programSlug: string;
+  degreeType?: string;
+  programLength?: number;
+  specializations?: string;
+  programDescription?: string;
+  curriculumOverview?: string;
+  admissionRequirements?: string;
+  averageEntranceScore?: number;
+  programTuitionFees?: number;
+  programAdditionalFees?: number;
+  programMetaTitle?: string;
+  programMetaDescription?: string;
+  isActive?: boolean;
+}
+
+interface UpdateProgramInput extends CreateProgramInput {
+  id: string;
+}
+
+interface SyllabusUploadProps {
+  programId: string;
+  existingSyllabus?: { id: string; fileUrl: string; uploadedAt: string } | null;
+  onUploadSuccess: (syllabus: any) => void;
+  onDeleteSuccess: () => void;
+}
+
+const SyllabusUpload: React.FC<SyllabusUploadProps> = ({ 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  programId, 
+  existingSyllabus, 
+  onUploadSuccess, 
+  onDeleteSuccess 
+}) => (
+  <div className="p-4 border border-dashed border-gray-300 rounded-lg text-center">
+    <p className="text-sm text-gray-600">Syllabus Upload Component</p>
+    {existingSyllabus && (
+      <p className="text-xs text-green-600 mt-2">
+        Current syllabus: {existingSyllabus.fileUrl}
+      </p>
+    )}
+  </div>
+);
 
 interface ProgramFormProps {
-  program?: ProgramWithFullRelations;
-  universities: { id: string; name: string; slug: string }[];
-  departments: DepartmentWithPrograms[];
+  program?: ProgramWithRelations | null;
+  universities?: University[];
+  departments?: Department[];
   onSubmit: (data: CreateProgramInput | UpdateProgramInput) => void;
   onClose: () => void;
-  loading: boolean;
+  loading?: boolean;
 }
 
 const ProgramForm: React.FC<ProgramFormProps> = ({
   program,
-  universities,
-  departments,
+  universities = [],
+  departments = [],
   onSubmit,
   onClose,
-  loading
+  loading = false
 }) => {
   const isEditing = !!program;
   
   // Filter departments based on selected university
-  const [selectedUniversity, setSelectedUniversity] = React.useState(
+  const [selectedUniversity, setSelectedUniversity] = React.useState<string>(
     program?.universityId || ''
   );
 
+  // State for selected departments (array instead of single value)
+  const [selectedDepartments, setSelectedDepartments] = React.useState<string[]>(
+    program?.departments?.map(d => d.department.id) || []
+  );
+
   // State for syllabus to trigger re-render with proper initial state
-  const [currentSyllabus, setCurrentSyllabus] = React.useState(
+  const [currentSyllabus, setCurrentSyllabus] = React.useState<{
+    id: string;
+    fileUrl: string;
+    uploadedAt: string;
+  } | null>(
     program?.syllabus ? {
       id: program.syllabus.id || '',
       fileUrl: program.syllabus.fileUrl || '',
-      uploadedAt: program.syllabus.uploadedAt || new Date().toISOString()
+      uploadedAt: program.syllabus.uploadedAt instanceof Date 
+        ? program.syllabus.uploadedAt.toISOString()
+        : program.syllabus.uploadedAt || new Date().toISOString()
     } : null
   );
 
@@ -49,37 +146,57 @@ const ProgramForm: React.FC<ProgramFormProps> = ({
       setCurrentSyllabus({
         id: program.syllabus.id || '',
         fileUrl: program.syllabus.fileUrl || '',
-        uploadedAt: program.syllabus.uploadedAt || new Date().toISOString()
+        uploadedAt: program.syllabus.uploadedAt instanceof Date 
+          ? program.syllabus.uploadedAt.toISOString()
+          : program.syllabus.uploadedAt || new Date().toISOString()
       });
     } else {
       setCurrentSyllabus(null);
     }
   }, [program?.syllabus]);
+
+  // Update selected departments when program prop changes
+  React.useEffect(() => {
+    if (program?.departments) {
+      setSelectedDepartments(program.departments.map(d => d.department.id));
+    } else {
+      setSelectedDepartments([]);
+    }
+  }, [program?.departments]);
   
   const filteredDepartments = departments.filter(
     dept => dept.universityId === selectedUniversity
   );
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Handle department selection/deselection
+  const toggleDepartment = (departmentId: string) => {
+    setSelectedDepartments(prev => 
+      prev.includes(departmentId)
+        ? prev.filter(id => id !== departmentId)
+        : [...prev, departmentId]
+    );
+  };
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const formData = new FormData(e.target as HTMLFormElement);
+    const formData = new FormData(e.currentTarget);
 
     const baseData = {
       universityId: formData.get('universityId') as string,
-      departmentId: formData.get('departmentId') as string,
+      departmentIds: selectedDepartments,
       programName: formData.get('programName') as string,
       programSlug: formData.get('programSlug') as string,
-      degreeType: formData.get('degreeType') as string || undefined,
+      degreeType: (formData.get('degreeType') as string) || undefined,
       programLength: parseInt(formData.get('programLength') as string) || undefined,
-      specializations: formData.get('specializations') as string || undefined,
-      programDescription: formData.get('programDescription') as string || undefined,
-      curriculumOverview: formData.get('curriculumOverview') as string || undefined,
-      admissionRequirements: formData.get('admissionRequirements') as string || undefined,
+      specializations: (formData.get('specializations') as string) || undefined,
+      programDescription: (formData.get('programDescription') as string) || undefined,
+      curriculumOverview: (formData.get('curriculumOverview') as string) || undefined,
+      admissionRequirements: (formData.get('admissionRequirements') as string) || undefined,
       averageEntranceScore: parseInt(formData.get('averageEntranceScore') as string) || undefined,
       programTuitionFees: parseInt(formData.get('programTuitionFees') as string) || undefined,
       programAdditionalFees: parseInt(formData.get('programAdditionalFees') as string) || undefined,
-      programMetaTitle: formData.get('programMetaTitle') as string || undefined,
-      programMetaDescription: formData.get('programMetaDescription') as string || undefined,
+      programMetaTitle: (formData.get('programMetaTitle') as string) || undefined,
+      programMetaDescription: (formData.get('programMetaDescription') as string) || undefined,
       isActive: formData.get('isActive') === 'on'
     };
 
@@ -90,8 +207,7 @@ const ProgramForm: React.FC<ProgramFormProps> = ({
       };
       onSubmit(updateData);
     } else {
-      const createData: CreateProgramInput = baseData;
-      onSubmit(createData);
+      onSubmit(baseData as CreateProgramInput);
     }
   };
 
@@ -123,53 +239,92 @@ const ProgramForm: React.FC<ProgramFormProps> = ({
 
       <form onSubmit={handleSubmit}>
         <div className="space-y-6 mb-6">
-          {/* University and Department */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label htmlFor="universityId" className="block text-sm font-medium text-gray-700 mb-1">
-                University <span className="text-red-500">*</span>
-              </label>
-              <select
-                id="universityId"
-                name="universityId"
-                defaultValue={program?.universityId || ''}
-                onChange={(e) => setSelectedUniversity(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                required
-                disabled={loading}
-              >
-                <option value="">Select University</option>
-                {universities.map((university) => (
-                  <option key={university.id} value={university.id}>
-                    {university.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            
-            <div>
-              <label htmlFor="departmentId" className="block text-sm font-medium text-gray-700 mb-1">
-                Department <span className="text-red-500">*</span>
-              </label>
-              <select
-                id="departmentId"
-                name="departmentId"
-                defaultValue={program?.departmentId || ''}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                required
-                disabled={loading || !selectedUniversity}
-              >
-                <option value="">Select Department</option>
-                {filteredDepartments.map((department) => (
-                  <option key={department.id} value={department.id}>
-                    {department.name}
-                  </option>
-                ))}
-              </select>
-              {!selectedUniversity && (
-                <p className="mt-1 text-xs text-gray-500">Please select a university first</p>
+          {/* University Selection */}
+          <div>
+            <label htmlFor="universityId" className="block text-sm font-medium text-gray-700 mb-1">
+              University <span className="text-red-500">*</span>
+            </label>
+            <select
+              id="universityId"
+              name="universityId"
+              defaultValue={program?.universityId || ''}
+              onChange={(e) => {
+                setSelectedUniversity(e.target.value);
+                setSelectedDepartments([]);
+              }}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              required
+              disabled={loading}
+            >
+              <option value="">Select University</option>
+              {universities.map((university) => (
+                <option key={university.id} value={university.id}>
+                  {university.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          
+          {/* Multiple Department Selection */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Departments <span className="text-red-500">*</span>
+            </label>
+            <div className="mt-1 min-h-[120px] max-h-[200px] overflow-y-auto border border-gray-300 rounded-md bg-white">
+              {!selectedUniversity ? (
+                <div className="p-3 text-sm text-gray-500">
+                  Please select a university first
+                </div>
+              ) : filteredDepartments.length === 0 ? (
+                <div className="p-3 text-sm text-gray-500">
+                  No departments available for selected university
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-200">
+                  {filteredDepartments.map((department) => (
+                    <div
+                      key={department.id}
+                      className={`p-3 flex items-center justify-between cursor-pointer hover:bg-gray-50 ${
+                        selectedDepartments.includes(department.id) 
+                          ? 'bg-blue-50 border-l-4 border-blue-500' 
+                          : ''
+                      }`}
+                      onClick={() => !loading && toggleDepartment(department.id)}
+                    >
+                      <div className="flex items-center">
+                        <div className={`w-4 h-4 mr-3 rounded border-2 flex items-center justify-center ${
+                          selectedDepartments.includes(department.id)
+                            ? 'bg-blue-500 border-blue-500'
+                            : 'border-gray-300'
+                        }`}>
+                          {selectedDepartments.includes(department.id) && (
+                            <Check className="w-3 h-3 text-white" />
+                          )}
+                        </div>
+                        <span className={`text-sm ${
+                          selectedDepartments.includes(department.id) 
+                            ? 'font-medium text-blue-900' 
+                            : 'text-gray-900'
+                        }`}>
+                          {department.name}
+                        </span>
+                      </div>
+                      <span className="text-xs text-gray-500">
+                        {department._count?.programs || 0} programs
+                      </span>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
+            {selectedDepartments.length === 0 && selectedUniversity && (
+              <p className="mt-1 text-xs text-red-500">Please select at least one department</p>
+            )}
+            {selectedDepartments.length > 0 && (
+              <p className="mt-1 text-xs text-gray-500">
+                {selectedDepartments.length} department{selectedDepartments.length > 1 ? 's' : ''} selected
+              </p>
+            )}
           </div>
           
           {/* Program Name and Slug */}
@@ -212,7 +367,7 @@ const ProgramForm: React.FC<ProgramFormProps> = ({
             </div>
           </div>
           
-          {/* Degree and Duration */}
+          {/* Degree Type and Program Length */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label htmlFor="degreeType" className="block text-sm font-medium text-gray-700 mb-1">
@@ -251,23 +406,7 @@ const ProgramForm: React.FC<ProgramFormProps> = ({
               />
             </div>
           </div>
-          
-          {/* Specializations */}
-          <div>
-            <label htmlFor="specializations" className="block text-sm font-medium text-gray-700 mb-1">
-              Specializations
-            </label>
-            <input
-              type="text"
-              id="specializations"
-              name="specializations"
-              defaultValue={program?.specializations || ''}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Comma separated list of specializations"
-              disabled={loading}
-            />
-          </div>
-          
+
           {/* Program Description */}
           <div>
             <label htmlFor="programDescription" className="block text-sm font-medium text-gray-700 mb-1">
@@ -284,44 +423,11 @@ const ProgramForm: React.FC<ProgramFormProps> = ({
             />
           </div>
           
-          {/* Curriculum and Requirements */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label htmlFor="curriculumOverview" className="block text-sm font-medium text-gray-700 mb-1">
-                Curriculum Overview
-              </label>
-              <textarea
-                id="curriculumOverview"
-                name="curriculumOverview"
-                defaultValue={program?.curriculumOverview || ''}
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Overview of curriculum structure..."
-                disabled={loading}
-              />
-            </div>
-            
-            <div>
-              <label htmlFor="admissionRequirements" className="block text-sm font-medium text-gray-700 mb-1">
-                Admission Requirements
-              </label>
-              <textarea
-                id="admissionRequirements"
-                name="admissionRequirements"
-                defaultValue={program?.admissionRequirements || ''}
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                placeholder="List of admission requirements..."
-                disabled={loading}
-              />
-            </div>
-          </div>
-          
           {/* Syllabus Upload Section - Only show if program exists (for editing) */}
           {isEditing && program?.id && (
             <div className="bg-gray-50 p-4 rounded-lg border">
               <SyllabusUpload
-                key={`syllabus-${currentSyllabus?.fileUrl || 'none'}`} // Force re-render on syllabus change
+                key={`syllabus-${currentSyllabus?.fileUrl || 'none'}`}
                 programId={program.id}
                 existingSyllabus={currentSyllabus}
                 onUploadSuccess={handleSyllabusUploadSuccess}
@@ -329,99 +435,7 @@ const ProgramForm: React.FC<ProgramFormProps> = ({
               />
             </div>
           )}
-          
-          {/* Fees and Scores */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div>
-              <label htmlFor="averageEntranceScore" className="block text-sm font-medium text-gray-700 mb-1">
-                Average Entrance Score
-              </label>
-              <input
-                type="number"
-                id="averageEntranceScore"
-                name="averageEntranceScore"
-                min="0"
-                max="100"
-                step="0.1"
-                defaultValue={program?.averageEntranceScore || ''}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                placeholder="e.g., 85.5"
-                disabled={loading}
-              />
-            </div>
-            
-            <div>
-              <label htmlFor="programTuitionFees" className="block text-sm font-medium text-gray-700 mb-1">
-                Tuition Fees ($)
-              </label>
-              <input
-                type="number"
-                id="programTuitionFees"
-                name="programTuitionFees"
-                min="0"
-                defaultValue={program?.programTuitionFees || ''}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                placeholder="e.g., 10000"
-                disabled={loading}
-              />
-            </div>
-            
-            <div>
-              <label htmlFor="programAdditionalFees" className="block text-sm font-medium text-gray-700 mb-1">
-                Additional Fees ($)
-              </label>
-              <input
-                type="number"
-                id="programAdditionalFees"
-                name="programAdditionalFees"
-                min="0"
-                defaultValue={program?.programAdditionalFees || ''}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                placeholder="e.g., 500"
-                disabled={loading}
-              />
-            </div>
-          </div>
-          
-          {/* SEO Metadata */}
-          <div className="space-y-4">
-            <h4 className="text-md font-medium text-gray-900 border-b pb-2">SEO Metadata</h4>
-            
-            <div>
-              <label htmlFor="programMetaTitle" className="block text-sm font-medium text-gray-700 mb-1">
-                SEO Title
-              </label>
-              <input
-                type="text"
-                id="programMetaTitle"
-                name="programMetaTitle"
-                defaultValue={program?.programMetaTitle || ''}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Meta title for SEO"
-                disabled={loading}
-                maxLength={60}
-              />
-              <p className="mt-1 text-xs text-gray-500">Recommended: 50-60 characters</p>
-            </div>
-            
-            <div>
-              <label htmlFor="programMetaDescription" className="block text-sm font-medium text-gray-700 mb-1">
-                SEO Description
-              </label>
-              <textarea
-                id="programMetaDescription"
-                name="programMetaDescription"
-                defaultValue={program?.programMetaDescription || ''}
-                rows={2}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Meta description for SEO"
-                disabled={loading}
-                maxLength={160}
-              />
-              <p className="mt-1 text-xs text-gray-500">Recommended: 150-160 characters</p>
-            </div>
-          </div>
-          
+
           {/* Status */}
           <div className="flex items-center">
             <input
@@ -454,7 +468,7 @@ const ProgramForm: React.FC<ProgramFormProps> = ({
             </button>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || selectedDepartments.length === 0}
               className="px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 min-w-[120px]"
             >
               {loading ? (

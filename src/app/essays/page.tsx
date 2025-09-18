@@ -8,74 +8,193 @@ import EssaySubmissionList from './components/EssaySubmissionList';
 import EssayPromptForm from './components/EssayPromptForm';
 import EssaySubmissionDetail from './components/EssaySubmissionDetail';
 import EssayAnalytics from './components/EssayAnalytics';
-import SearchFilters from './components/SearchFilter';
+import * as Yup from 'yup';
 
-// ================== SERVER ACTIONS ==================
+// Import the actual server actions (remove mock implementations)
 import {
   createEssayPrompt,
   updateEssayPrompt,
+  deleteEssayPrompt,
   createEssaySubmission,
   updateEssaySubmission,
   getEssayPrompts,
   getEssaySubmissions,
-  type EssayPrompt as ServerEssayPrompt,
-  type EssaySubmission as ServerEssaySubmission,
-  type EssayPromptInput,
-  type EssayPromptUpdateInput,
-  type EssaySubmissionInput,
-  type EssaySubmissionUpdateInput
-} from './action/EssayAction'
+  getUniversities,
+  getPrograms,
+  getAdmissions,
+  getAllIntakes,
+  getIntakesForAdmission,
+  getEssayPromptsWithFilters,
+  getEssaySubmissionsWithFilters,
+} from './action/EssayAction'; // Update this path to match your actual essay actions file
 
 // ================== INTERFACES ==================
-interface Admission {
-  id: string;
-  name: string;
-}
-
-interface Program {
-  id: string;
-  programName: string;
-}
-
-interface Intake {
-  id: string;
-  name: string;
-}
-
-interface User {
-  id: string;
-  name: string;
-  email: string;
-}
-
-interface Application {
-  id: string;
-}
 
 // Extended interfaces for UI with related data
-export interface EssayPrompt extends ServerEssayPrompt {
-  admission: Admission;
-  program?: Program;
-  intake?: Intake;
+export interface EssayPrompt {
+  id: string;
+  promptTitle: string;
+  promptText: string;
+  wordLimit: number;
+  minWordCount?: number;
+  isMandatory?: boolean;
+  isActive?: boolean;
+  admissionId?: string | null;
+  programId?: string | null;
+  intakeId?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  admission?: {
+    id: string;
+    university: {
+      universityName: string;
+      city: string;
+      country: string;
+    };
+    program: {
+      programName: string;
+      degreeType: string | null;
+    };
+  };
+  program?: {
+    id: string;
+    programName: string;
+    degreeType: string | null;
+    university: {
+      universityName: string;
+    };
+  };
+  intake?: {
+    id: string;
+    intakeName: string;
+    intakeType: string;
+    intakeYear: number;
+  };
   _count: {
     submissions: number;
   };
 }
 
-export interface EssaySubmission extends ServerEssaySubmission {
+export interface EssaySubmission {
+  id: string;
+  title?: string;
+  content: string;
+  wordCount: number;
+  status: string;
+  reviewStatus: string;
+  internalRating?: number;
+  reviewerComments?: string;
+  essayPromptId: string;
+  userId?: string;
+  applicationId?: string;
+  submittedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
   essayPrompt: {
     promptTitle: string;
     wordLimit: number;
+    admission?: {
+      university: {
+        universityName: string;
+      };
+      program: {
+        programName: string;
+      };
+    };
   };
-  user: User;
-  application: Application;
+  user?: {
+    id: string;
+    name: string | null;
+    email: string;
+  };
+  application?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+}
+
+export interface EssayPromptInput {
+  admissionId?: string | null;
+  programId?: string | null;
+  intakeId?: string | null;
+  promptTitle: string;
+  promptText: string;
+  wordLimit: number;
+  minWordCount?: number;
+  isMandatory?: boolean;
+  isActive?: boolean;
+}
+
+export interface EssayPromptUpdateInput extends EssayPromptInput {
+  id: string;
+}
+
+export interface EssaySubmissionInput {
+  title?: string;
+  content: string;
+  wordCount: number;
+  status: string;
+  reviewStatus: string;
+  internalRating?: number;
+  reviewerComments?: string;
+  essayPromptId: string;
+  userId?: string;
+  applicationId?: string;
+}
+
+export interface EssaySubmissionUpdateInput extends EssaySubmissionInput {
+  id: string;
+}
+
+export interface University {
+  id: string;
+  universityName: string;
+  city: string;
+  country: string;
+}
+
+export interface Program {
+  id: string;
+  programName: string;
+  degreeType: string | null;
+  universityId: string;
+  university?: {
+    universityName: string;
+  };
+}
+
+export interface AdmissionWithRelations {
+  id: string;
+  universityId: string;
+  programId: string;
+  university: { 
+    universityName: string;
+    city: string;
+    country: string;
+  };
+  program: { 
+    programName: string;
+    degreeType: string | null;
+  };
+}
+
+export interface IntakeWithRelations {
+  id: string;
+  admissionId: string;
+  intakeName: string;
+  intakeType: string;
+  intakeYear: number;
 }
 
 interface Filters {
-  admissionId: string;
+  universityId: string;
   programId: string;
+  admissionId: string;
   intakeId: string;
   status: string;
+  reviewStatus: string;
   isMandatory: boolean | undefined;
   isActive: boolean | undefined;
 }
@@ -87,14 +206,6 @@ interface Stats {
   averageRating: number;
 }
 
-// Re-export for component usage
-export type {
-  EssayPromptInput,
-  EssayPromptUpdateInput,
-  EssaySubmissionInput,
-  EssaySubmissionUpdateInput
-};
-
 // ================== MAIN COMPONENT ==================
 const EssayManagement = () => {
   const [activeTab, setActiveTab] = useState<'prompts' | 'submissions' | 'analytics'>('prompts');
@@ -102,39 +213,71 @@ const EssayManagement = () => {
   const [showForm, setShowForm] = useState<boolean>(false);
   const [selectedItem, setSelectedItem] = useState<EssayPrompt | EssaySubmission | null>(null);
   const [filters, setFilters] = useState<Filters>({
-    admissionId: '',
+    universityId: '',
     programId: '',
+    admissionId: '',
     intakeId: '',
     status: '',
+    reviewStatus: '',
     isMandatory: undefined,
     isActive: true
   });
 
+  // Data states
   const [essayPrompts, setEssayPrompts] = useState<EssayPrompt[]>([]);
   const [essaySubmissions, setEssaySubmissions] = useState<EssaySubmission[]>([]);
-  const [admissions, setAdmissions] = useState<Admission[]>([]);
+  
+  // Dropdown data states
+  const [universities, setUniversities] = useState<University[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
-  const [intakes, setIntakes] = useState<Intake[]>([]);
+  const [admissions, setAdmissions] = useState<AdmissionWithRelations[]>([]);
+  const [intakes, setIntakes] = useState<IntakeWithRelations[]>([]);
+  
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   // ================== DATA FETCHING ==================
+  const fetchDropdownData = async (): Promise<void> => {
+    try {
+      setLoading(true);
+      
+      const [universitiesData, programsData, admissionsData, intakesData] = await Promise.all([
+        getUniversities(),
+        getPrograms(),
+        getAdmissions(),
+        getAllIntakes(),
+      ]);
+
+      setUniversities(universitiesData);
+      setPrograms(programsData);
+      setAdmissions(admissionsData);
+      setIntakes(intakesData);
+    } catch (err) {
+      console.error('Error fetching dropdown data:', err);
+      setError('Failed to fetch dropdown data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const fetchEssayPrompts = async (): Promise<void> => {
     try {
       setLoading(true);
       setError(null);
-      const prompts = await getEssayPrompts();
       
-      // Transform server data to include related fields (you'll need to modify server action to include these)
-      const transformedPrompts: EssayPrompt[] = prompts.map(prompt => ({
-        ...prompt,
-        admission: { id: prompt.admissionId, name: 'Loading...' }, // Placeholder - fetch from related tables
-        program: prompt.programId ? { id: prompt.programId, programName: 'Loading...' } : undefined,
-        intake: prompt.intakeId ? { id: prompt.intakeId, name: 'Loading...' } : undefined,
-        _count: { submissions: 0 } // Will need to be calculated
-      }));
+      // Apply filters if any are set
+      const filterObj = {
+        ...(filters.universityId && { universityId: filters.universityId }),
+        ...(filters.programId && { programId: filters.programId }),
+        ...(filters.admissionId && { admissionId: filters.admissionId }),
+        ...(filters.isActive !== undefined && { isActive: filters.isActive }),
+      };
+
+      const prompts = Object.keys(filterObj).length > 0
+        ? await getEssayPromptsWithFilters(filterObj)
+        : await getEssayPrompts();
       
-      setEssayPrompts(transformedPrompts);
+      setEssayPrompts(prompts as EssayPrompt[]);
     } catch (err) {
       console.error('Error fetching essay prompts:', err);
       setError('Failed to fetch essay prompts');
@@ -147,24 +290,20 @@ const EssayManagement = () => {
     try {
       setLoading(true);
       setError(null);
-      const submissions = await getEssaySubmissions();
       
-      // Transform server data to include related fields (you'll need to modify server action to include these)
-      const transformedSubmissions: EssaySubmission[] = submissions.map(submission => ({
-        ...submission,
-        essayPrompt: { 
-          promptTitle: 'Loading...', // Fetch from related prompt
-          wordLimit: 0 
-        },
-        user: { 
-          id: submission.userId || '', 
-          name: 'Loading...', 
-          email: 'Loading...' 
-        },
-        application: { id: submission.applicationId || '' }
-      }));
+      // Apply filters if any are set
+      const filterObj = {
+        ...(filters.status && { status: filters.status }),
+        ...(filters.reviewStatus && { reviewStatus: filters.reviewStatus }),
+        ...(filters.universityId && { universityId: filters.universityId }),
+        ...(filters.programId && { programId: filters.programId }),
+      };
+
+      const submissions = Object.keys(filterObj).length > 0
+        ? await getEssaySubmissionsWithFilters(filterObj)
+        : await getEssaySubmissions();
       
-      setEssaySubmissions(transformedSubmissions);
+      setEssaySubmissions(submissions as EssaySubmission[]);
     } catch (err) {
       console.error('Error fetching essay submissions:', err);
       setError('Failed to fetch essay submissions');
@@ -175,9 +314,15 @@ const EssayManagement = () => {
 
   // Initial data fetch
   useEffect(() => {
-    fetchEssayPrompts();
-    fetchEssaySubmissions();
+    fetchDropdownData();
   }, []);
+
+  useEffect(() => {
+    if (universities.length > 0) {
+      fetchEssayPrompts();
+      fetchEssaySubmissions();
+    }
+  }, [filters, universities]);
 
   // ================== EVENT HANDLERS ==================
   const handleCreateNew = (): void => {
@@ -200,12 +345,20 @@ const EssayManagement = () => {
     setError(null);
     
     try {
-      if (selectedItem) {
+      // Clean up empty strings to null for optional fields
+      const cleanedData = {
+        ...data,
+        admissionId: data.admissionId || null,
+        programId: data.programId || null,
+        intakeId: data.intakeId || null,
+      };
+      
+      if (selectedItem && 'id' in selectedItem) {
         // Update existing prompt
-        await updateEssayPrompt(selectedItem.id, data as EssayPromptUpdateInput);
+        await updateEssayPrompt(selectedItem.id, cleanedData as EssayPromptUpdateInput);
       } else {
         // Create new prompt
-        await createEssayPrompt(data as EssayPromptInput);
+        await createEssayPrompt(cleanedData as EssayPromptInput);
       }
       
       // Refresh data
@@ -239,12 +392,10 @@ const EssayManagement = () => {
   };
 
   const handleDeletePrompt = async (promptId: string): Promise<void> => {
-    // You'll need to add a delete server action
     try {
       setLoading(true);
       setError(null);
-      // await deleteEssayPrompt(promptId);
-      console.log('Delete prompt:', promptId);
+      await deleteEssayPrompt(promptId);
       await fetchEssayPrompts();
     } catch (err) {
       console.error('Error deleting prompt:', err);
@@ -254,24 +405,41 @@ const EssayManagement = () => {
     }
   };
 
+  const handleFilterChange = (newFilters: Partial<Filters>): void => {
+    setFilters(prev => ({ ...prev, ...newFilters }));
+  };
 
-  // Inside EssayManagement component
-
+  const clearFilters = (): void => {
+    setFilters({
+      universityId: '',
+      programId: '',
+      admissionId: '',
+      intakeId: '',
+      status: '',
+      reviewStatus: '',
+      isMandatory: undefined,
+      isActive: true
+    });
+  };
 
   // ================== FILTERING ==================
   const filteredData = (): EssayPrompt[] | EssaySubmission[] => {
     if (activeTab === 'prompts') {
       return essayPrompts.filter(prompt => 
-        prompt.promptTitle.toLowerCase().includes(searchQuery.toLowerCase()) &&
-        (!filters.admissionId || prompt.admissionId === filters.admissionId) &&
-        (!filters.programId || prompt.programId === filters.programId) &&
-        (filters.isActive === undefined || prompt.isActive === filters.isActive)
+        prompt.promptTitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        prompt.admission?.university.universityName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        prompt.admission?.program.programName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        prompt.program?.programName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        prompt.program?.university.universityName.toLowerCase().includes(searchQuery.toLowerCase())
       );
     } else if (activeTab === 'submissions') {
       return essaySubmissions.filter(submission => 
-        (submission.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-         submission.essayPrompt?.promptTitle?.toLowerCase().includes(searchQuery.toLowerCase())) &&
-        (!filters.status || submission.status === filters.status)
+        submission.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        submission.essayPrompt?.promptTitle?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        submission.essayPrompt?.admission?.university.universityName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        submission.user?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        submission.application?.firstName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        submission.application?.lastName?.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
     return [];
@@ -292,14 +460,14 @@ const EssayManagement = () => {
     <div className="min-h-screen bg-gray-50">
       {/* Error Display */}
       {error && (
-        <div className="bg-red-50 border-l-4 border-red-400 p-4">
+        <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-4">
           <div className="flex">
             <div className="ml-3">
               <p className="text-sm text-red-700">{error}</p>
             </div>
             <button
               onClick={() => setError(null)}
-              className="ml-auto text-red-400 hover:text-red-600"
+              className="ml-auto text-red-400 hover:text-red-600 text-xl leading-none"
             >
               ×
             </button>
@@ -415,7 +583,8 @@ const EssayManagement = () => {
           {/* Search and Filter Section */}
           {activeTab !== 'analytics' && (
             <div className="p-6">
-              <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+              <div className="flex flex-col lg:flex-row gap-4 items-start">
+                {/* Search */}
                 <div className="flex-1 max-w-md">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
@@ -428,11 +597,90 @@ const EssayManagement = () => {
                     />
                   </div>
                 </div>
-                <SearchFilters
-                  filters={filters}
-                  setFilters={setFilters}
-                  activeTab={activeTab}
-                />
+
+                {/* Filters */}
+                <div className="flex flex-wrap gap-3 items-center">
+                  {/* University Filter */}
+                  <select
+                    value={filters.universityId}
+                    onChange={(e) => handleFilterChange({ universityId: e.target.value })}
+                    className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                  >
+                    <option value="">All Universities</option>
+                    {universities.map(uni => (
+                      <option key={uni.id} value={uni.id}>
+                        {uni.universityName}
+                      </option>
+                    ))}
+                  </select>
+
+                  {/* Program Filter */}
+                  <select
+                    value={filters.programId}
+                    onChange={(e) => handleFilterChange({ programId: e.target.value })}
+                    className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                  >
+                    <option value="">All Programs</option>
+                    {programs
+                      .filter(program => !filters.universityId || program.universityId === filters.universityId)
+                      .map(program => (
+                        <option key={program.id} value={program.id}>
+                          {program.programName} {program.degreeType ? `(${program.degreeType})` : ''}
+                        </option>
+                      ))}
+                  </select>
+
+                  {/* Status Filter for Submissions */}
+                  {activeTab === 'submissions' && (
+                    <>
+                      <select
+                        value={filters.status}
+                        onChange={(e) => handleFilterChange({ status: e.target.value })}
+                        className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                      >
+                        <option value="">All Status</option>
+                        <option value="DRAFT">Draft</option>
+                        <option value="SUBMITTED">Submitted</option>
+                        <option value="UNDER_REVIEW">Under Review</option>
+                        <option value="ACCEPTED">Accepted</option>
+                        <option value="REJECTED">Rejected</option>
+                      </select>
+
+                      <select
+                        value={filters.reviewStatus}
+                        onChange={(e) => handleFilterChange({ reviewStatus: e.target.value })}
+                        className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                      >
+                        <option value="">All Review Status</option>
+                        <option value="PENDING">Pending Review</option>
+                        <option value="REVIEWED">Reviewed</option>
+                      </select>
+                    </>
+                  )}
+
+                  {/* Active Filter for Prompts */}
+                  {activeTab === 'prompts' && (
+                    <select
+                      value={filters.isActive === undefined ? '' : filters.isActive.toString()}
+                      onChange={(e) => handleFilterChange({ 
+                        isActive: e.target.value === '' ? undefined : e.target.value === 'true' 
+                      })}
+                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                    >
+                      <option value="">All Status</option>
+                      <option value="true">Active</option>
+                      <option value="false">Inactive</option>
+                    </select>
+                  )}
+
+                  {/* Clear Filters */}
+                  <button
+                    onClick={clearFilters}
+                    className="px-3 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 text-sm transition-colors"
+                  >
+                    Clear
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -489,19 +737,16 @@ const EssayManagement = () => {
 
       {/* Form Modal */}
       {showForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <EssayPromptForm
-              prompt={selectedItem as EssayPrompt ?? undefined}
-              onSubmit={handleFormSubmit}
-              onClose={handleFormClose}
-              loading={loading}
-              admissions={admissions}
-              programs={programs}
-              intakes={intakes}
-            />
-          </div>
-        </div>
+        <EssayPromptForm
+          prompt={selectedItem as EssayPrompt ?? undefined}
+          onSubmit={handleFormSubmit}
+          onClose={handleFormClose}
+          loading={loading}
+          universities={universities}
+          programs={programs}
+          admissions={admissions}
+          intakes={intakes}
+        />
       )}
     </div>
   );

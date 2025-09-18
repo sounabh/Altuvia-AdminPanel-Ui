@@ -64,35 +64,21 @@ export async function deleteDepartment(id: string): Promise<ActionResult<void>> 
   }
 }
 
-export async function getDepartmentsByUniversity(universityId?: string): Promise<DepartmentWithPrograms[]> {
-  try {
-    return await prisma.department.findMany({
-      where: universityId ? { universityId } : {},
-      include: {
-        programs: {
-          select: {
-            id: true,
-            programName: true,
-            degreeType: true,
-            isActive: true,
-          }
-        },
-        _count: { select: { programs: true } }
-      },
-      orderBy: { name: 'asc' }
-    })
-  } catch (error) {
-    return []
-  }
-}
-
-// Program Actions
+// Program Actions with multiple departments support
 export async function createProgram(data: CreateProgramInput): Promise<ActionResult<Program>> {
   try {
+    const { departmentIds, ...programData } = data;
+    
     const program = await prisma.program.create({
       data: {
-        ...data,
+        ...programData,
         isActive: data.isActive ?? true,
+        // Create department relationships
+        departments: {
+          create: departmentIds.map(departmentId => ({
+            departmentId
+          }))
+        }
       },
     })
     revalidatePath('/programs')
@@ -104,9 +90,28 @@ export async function createProgram(data: CreateProgramInput): Promise<ActionRes
 
 export async function updateProgram(id: string, data: UpdateProgramInput): Promise<ActionResult<Program>> {
   try {
+    const { departmentIds, ...programData } = data;
+    
+    // If departmentIds are provided, update the relationships
+    const updateData: any = { ...programData };
+    
+    if (departmentIds !== undefined) {
+      // First, delete existing department relationships
+      await prisma.programDepartment.deleteMany({
+        where: { programId: id }
+      });
+      
+      // Then create new relationships
+      updateData.departments = {
+        create: departmentIds.map(departmentId => ({
+          departmentId
+        }))
+      };
+    }
+
     const program = await prisma.program.update({
       where: { id },
-      data,
+      data: updateData,
     })
     revalidatePath('/programs')
     return { success: true, data: program }
@@ -125,12 +130,25 @@ export async function deleteProgram(id: string): Promise<ActionResult<void>> {
   }
 }
 
-export async function getProgramsByDepartment(departmentId: string): Promise<ProgramWithRelations[]> {
+// Updated to get programs by multiple departments
+export async function getProgramsByDepartments(departmentIds: string[]): Promise<ProgramWithRelations[]> {
   try {
     return await prisma.program.findMany({
-      where: { departmentId },
+      where: {
+        departments: {
+          some: {
+            departmentId: {
+              in: departmentIds
+            }
+          }
+        }
+      },
       include: {
-        department: true,
+        departments: {
+          include: {
+            department: true
+          }
+        },
         university: {
           select: {
             id: true,
@@ -161,7 +179,11 @@ export async function getProgramById(id: string): Promise<ProgramWithFullRelatio
     return await prisma.program.findUnique({
       where: { id },
       include: {
-        department: true,
+        departments: {
+          include: {
+            department: true
+          }
+        },
         university: {
           select: {
             id: true,
@@ -194,6 +216,37 @@ export async function getProgramById(id: string): Promise<ProgramWithFullRelatio
   }
 }
 
+// Updated function to get departments with program counts
+export async function getDepartmentsByUniversity(universityId?: string): Promise<DepartmentWithPrograms[]> {
+  try {
+    return await prisma.department.findMany({
+      where: universityId ? { universityId } : {},
+      include: {
+        programs: {
+          include: {
+            program: {
+              select: {
+                id: true,
+                programName: true,
+                degreeType: true,
+                isActive: true,
+              }
+            }
+          }
+        },
+        _count: { 
+          select: { 
+            programs: true 
+          } 
+        }
+      },
+      orderBy: { name: 'asc' }
+    })
+  } catch (error) {
+    return []
+  }
+}
+
 // Syllabus Actions
 export async function uploadSyllabus(data: CreateSyllabusInput): Promise<ActionResult<Syllabus>> {
   try {
@@ -201,11 +254,11 @@ export async function uploadSyllabus(data: CreateSyllabusInput): Promise<ActionR
       where: { programId: data.programId },
       update: { 
         fileUrl: data.fileUrl,
-        uploadedAt: new Date() // Update the upload timestamp
+        uploadedAt: new Date()
       },
       create: {
         ...data,
-        uploadedAt: new Date() // Ensure uploadedAt is set for new records
+        uploadedAt: new Date()
       },
     })
     revalidatePath(`/programs/${data.programId}`)
@@ -299,30 +352,44 @@ export async function deleteExternalLink(id: string): Promise<ActionResult<void>
   }
 }
 
-// Search and Filter Actions
+// Updated search function to handle multiple departments
 export async function searchPrograms(
   query: string,
   filters?: SearchProgramsFilters
 ): Promise<ProgramSearchResult[]> {
   try {
+    const whereClause: any = {
+      AND: [
+        filters?.universityId ? { universityId: filters.universityId } : {},
+        filters?.departmentIds && filters.departmentIds.length > 0 ? {
+          departments: {
+            some: {
+              departmentId: {
+                in: filters.departmentIds
+              }
+            }
+          }
+        } : {},
+        filters?.degreeType ? { degreeType: filters.degreeType } : {},
+        filters?.isActive !== undefined ? { isActive: filters.isActive } : {},
+        query ? {
+          OR: [
+            { programName: { contains: query, mode: 'insensitive' } },
+            { programDescription: { contains: query, mode: 'insensitive' } },
+            { specializations: { contains: query, mode: 'insensitive' } },
+          ]
+        } : {},
+      ]
+    };
+
     return await prisma.program.findMany({
-      where: {
-        AND: [
-          filters?.universityId ? { universityId: filters.universityId } : {},
-          filters?.departmentId ? { departmentId: filters.departmentId } : {},
-          filters?.degreeType ? { degreeType: filters.degreeType } : {},
-          filters?.isActive !== undefined ? { isActive: filters.isActive } : {},
-          query ? {
-            OR: [
-              { programName: { contains: query, mode: 'insensitive' } },
-              { programDescription: { contains: query, mode: 'insensitive' } },
-              { specializations: { contains: query, mode: 'insensitive' } },
-            ]
-          } : {},
-        ]
-      },
+      where: whereClause,
       include: {
-        department: true,
+        departments: {
+          include: {
+            department: true
+          }
+        },
         university: {
           select: {
             id: true,
