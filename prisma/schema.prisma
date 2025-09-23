@@ -35,6 +35,7 @@ model User {
   essays                   Essay[]
 
   @@map("users")
+  EssayCompletionLog EssayCompletionLog[]
 }
 
 model UserProfile {
@@ -212,7 +213,6 @@ model ProgramDepartment {
   @@map("program_departments")
 }
 
-// Update your existing Department model
 model Department {
   id           String   @id @default(cuid())
   universityId String
@@ -229,11 +229,9 @@ model Department {
   @@map("departments")
 }
 
-// Update your existing Program model - remove departmentId field
 model Program {
   id                     String   @id @default(cuid())
   universityId           String
-  // REMOVE THIS LINE: departmentId           String
   programName            String
   programSlug            String   @unique
   degreeType             String?
@@ -254,7 +252,6 @@ model Program {
   // Relations
   university        University         @relation(fields: [universityId], references: [id], onDelete: Cascade)
   departments       ProgramDepartment[] // Many-to-many through junction table
-  // ... keep all your other existing relations
   syllabus          Syllabus?
   rankings          ProgramRanking[]
   externalLinks     ExternalLink[]
@@ -998,7 +995,7 @@ model Essay {
   userId           String?
   applicationId    String?
   programId        String
-  essayPromptId    String
+  essayPromptId    String?
   
   // Essay Content
   title            String
@@ -1009,6 +1006,12 @@ model Essay {
   // Status and Priority
   status           String   @default("DRAFT") // DRAFT, IN_PROGRESS, COMPLETED, SUBMITTED
   priority         String   @default("medium") // high, medium, low
+  
+  // NEW: Completion tracking
+  isCompleted      Boolean  @default(false)
+  completedAt      DateTime?
+  completionPercentage Float @default(0.0) // 0-100
+  
   
   // Metadata
   lastModified     DateTime @default(now())
@@ -1023,12 +1026,13 @@ model Essay {
   user            User?           @relation(fields: [userId], references: [id], onDelete: Cascade)
   application     Application?    @relation(fields: [applicationId], references: [id], onDelete: Cascade)
   program         Program         @relation(fields: [programId], references: [id], onDelete: Cascade)
-  essayPrompt     EssayPrompt     @relation(fields: [essayPromptId], references: [id], onDelete: Cascade)
+  essayPrompt     EssayPrompt?     @relation(fields: [essayPromptId], references: [id], onDelete: Cascade)
   versions        EssayVersion[]
   aiResults       AIResult[]
 
   @@unique([userId, programId, essayPromptId])
   @@map("essays")
+  EssayCompletionLog EssayCompletionLog[]
 }
 
 model EssayVersion {
@@ -1087,20 +1091,12 @@ model AIResult {
   avgSentenceLength    Float?
   complexWordCount     Int?
   passiveVoiceCount    Int?
-  
-
-
-// Additional analysis metrics
-
   structureScore       Float?
   contentRelevance     Float?
   narrativeFlow        Float?
   leadershipEmphasis   Float?
   specificityScore     Float?
   grammarIssues        Int?
-
-
-
 
   // Metadata
   createdAt       DateTime @default(now())
@@ -1113,6 +1109,34 @@ model AIResult {
   @@map("ai_results")
   @@index([essayId, analysisType])
   @@index([essayVersionId])
+}
+
+// NEW: Essay completion log table
+model EssayCompletionLog {
+  id          String   @id @default(cuid())
+  essayId     String
+  userId      String?
+  
+  // Completion details
+  completedAt       DateTime @default(now())
+  wordCountAtCompletion Int
+  wordLimit         Int
+  completionMethod  String   // AUTO, MANUAL
+  previousStatus    String?  // Previous status before completion
+  
+  // Context
+  programId         String?
+  universityId      String?
+  essayPromptTitle  String?
+  
+  // Metadata
+  createdAt         DateTime @default(now())
+
+  // Relations
+  essay Essay @relation(fields: [essayId], references: [id], onDelete: Cascade)
+  user  User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("essay_completion_logs")
 }
 
 // ==================== CALENDAR MODELS ====================
