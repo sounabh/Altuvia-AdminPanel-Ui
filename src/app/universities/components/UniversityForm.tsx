@@ -11,7 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Sparkles, Save, X } from "lucide-react";
+import { Sparkles, Save, X, Loader2 } from "lucide-react";
 import { University, UniversityFormData, UniversityImage } from "../types/university";
 import { UniversityImageManager } from "./UniversityImageManager";
 import { getUniversityImages } from "../actions/UniActions";
@@ -86,6 +86,7 @@ export function UniversityForm({
   const [activeTab, setActiveTab] = useState("basic");
   const [images, setImages] = useState<UniversityImage[]>([]);
   const [isLoadingImages, setIsLoadingImages] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (university) {
@@ -148,6 +149,13 @@ export function UniversityForm({
       setImages([]);
     }
   }, [university]);
+
+  // Reset submitting state when dialog closes
+  useEffect(() => {
+    if (!isOpen) {
+      setIsSubmitting(false);
+    }
+  }, [isOpen]);
 
   const loadUniversityImages = async (universityId: string) => {
     try {
@@ -259,13 +267,18 @@ export function UniversityForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (isSubmitting) return; // Prevent double submission
+    
     try {
+      setIsSubmitting(true);
       await onSave(formData);
       onClose();
       toast.success(university ? "University updated successfully!" : "University created successfully!");
     } catch (error) {
       toast.error("Error saving university data");
       console.error("Error:", error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -274,7 +287,7 @@ export function UniversityForm({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={(open) => !isSubmitting && onClose()}>
       <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
@@ -294,6 +307,7 @@ export function UniversityForm({
               variant="outline"
               onClick={generateAIData}
               className="mr-2"
+              disabled={isSubmitting}
             >
               <Sparkles className="h-4 w-4 mr-2" />
               Generate AI Data
@@ -302,12 +316,12 @@ export function UniversityForm({
 
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="grid w-full grid-cols-6">
-              <TabsTrigger value="basic">Basic Info</TabsTrigger>
-              <TabsTrigger value="content">Content</TabsTrigger>
-              <TabsTrigger value="rankings">Rankings</TabsTrigger>
-              <TabsTrigger value="admissions">Admissions</TabsTrigger>
-              <TabsTrigger value="images">Images</TabsTrigger>
-              <TabsTrigger value="seo">SEO & Meta</TabsTrigger>
+              <TabsTrigger value="basic" disabled={isSubmitting}>Basic Info</TabsTrigger>
+              <TabsTrigger value="content" disabled={isSubmitting}>Content</TabsTrigger>
+              <TabsTrigger value="rankings" disabled={isSubmitting}>Rankings</TabsTrigger>
+              <TabsTrigger value="admissions" disabled={isSubmitting}>Admissions</TabsTrigger>
+              <TabsTrigger value="images" disabled={isSubmitting}>Images</TabsTrigger>
+              <TabsTrigger value="seo" disabled={isSubmitting}>SEO & Meta</TabsTrigger>
             </TabsList>
 
             {/* Basic Information Tab */}
@@ -320,6 +334,7 @@ export function UniversityForm({
                     value={formData.universityName}
                     onChange={(e) => handleNameChange(e.target.value)}
                     required
+                    disabled={isSubmitting}
                   />
                 </div>
                 <div>
@@ -329,6 +344,7 @@ export function UniversityForm({
                     value={formData.slug}
                     onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
                     required
+                    disabled={isSubmitting}
                   />
                 </div>
               </div>
@@ -341,6 +357,7 @@ export function UniversityForm({
                     value={formData.city}
                     onChange={(e) => setFormData({ ...formData, city: e.target.value })}
                     required
+                    disabled={isSubmitting}
                   />
                 </div>
                 <div>
@@ -349,6 +366,7 @@ export function UniversityForm({
                     id="state"
                     value={formData.state || ""}
                     onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+                    disabled={isSubmitting}
                   />
                 </div>
                 <div>
@@ -356,6 +374,7 @@ export function UniversityForm({
                   <Select
                     value={formData.country}
                     onValueChange={(value) => setFormData({ ...formData, country: value })}
+                    disabled={isSubmitting}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select country" />
@@ -382,6 +401,7 @@ export function UniversityForm({
                   id="fullAddress"
                   value={formData.fullAddress || ""}
                   onChange={(e) => setFormData({ ...formData, fullAddress: e.target.value })}
+                  disabled={isSubmitting}
                 />
               </div>
 
@@ -392,6 +412,7 @@ export function UniversityForm({
                   type="url"
                   value={formData.websiteUrl || ""}
                   onChange={(e) => setFormData({ ...formData, websiteUrl: e.target.value })}
+                  disabled={isSubmitting}
                 />
               </div>
 
@@ -402,6 +423,7 @@ export function UniversityForm({
                   type="url"
                   value={formData.brochureUrl || ""}
                   onChange={(e) => setFormData({ ...formData, brochureUrl: e.target.value })}
+                  disabled={isSubmitting}
                 />
               </div>
 
@@ -413,6 +435,7 @@ export function UniversityForm({
                     onCheckedChange={(checked) => 
                       setFormData({ ...formData, isActive: checked as boolean })
                     }
+                    disabled={isSubmitting}
                   />
                   <Label htmlFor="isActive">Active</Label>
                 </div>
@@ -423,6 +446,7 @@ export function UniversityForm({
                     onCheckedChange={(checked) => 
                       setFormData({ ...formData, isFeatured: checked as boolean })
                     }
+                    disabled={isSubmitting}
                   />
                   <Label htmlFor="isFeatured">Featured</Label>
                 </div>
@@ -437,6 +461,7 @@ export function UniversityForm({
                   id="shortDescription"
                   value={formData.shortDescription || ""}
                   onChange={(e) => setFormData({ ...formData, shortDescription: e.target.value })}
+                  disabled={isSubmitting}
                 />
               </div>
 
@@ -447,6 +472,7 @@ export function UniversityForm({
                   value={formData.overview || ""}
                   onChange={(e) => setFormData({ ...formData, overview: e.target.value })}
                   rows={4}
+                  disabled={isSubmitting}
                 />
               </div>
 
@@ -457,6 +483,7 @@ export function UniversityForm({
                   value={formData.history || ""}
                   onChange={(e) => setFormData({ ...formData, history: e.target.value })}
                   rows={3}
+                  disabled={isSubmitting}
                 />
               </div>
 
@@ -467,6 +494,7 @@ export function UniversityForm({
                   value={formData.missionStatement || ""}
                   onChange={(e) => setFormData({ ...formData, missionStatement: e.target.value })}
                   rows={2}
+                  disabled={isSubmitting}
                 />
               </div>
 
@@ -477,6 +505,7 @@ export function UniversityForm({
                   value={formData.visionStatement || ""}
                   onChange={(e) => setFormData({ ...formData, visionStatement: e.target.value })}
                   rows={2}
+                  disabled={isSubmitting}
                 />
               </div>
 
@@ -492,6 +521,7 @@ export function UniversityForm({
                     })
                   }
                   rows={3}
+                  disabled={isSubmitting}
                 />
               </div>
 
@@ -502,6 +532,7 @@ export function UniversityForm({
                   value={formData.careerOutcomes || ""}
                   onChange={(e) => setFormData({ ...formData, careerOutcomes: e.target.value })}
                   rows={3}
+                  disabled={isSubmitting}
                 />
               </div>
             </TabsContent>
@@ -516,6 +547,7 @@ export function UniversityForm({
                     type="number"
                     value={formData.ftGlobalRanking || ""}
                     onChange={(e) => setFormData({ ...formData, ftGlobalRanking: e.target.value ? parseInt(e.target.value) : undefined })}
+                    disabled={isSubmitting}
                   />
                 </div>
                 <div>
@@ -525,6 +557,7 @@ export function UniversityForm({
                     type="number"
                     value={formData.ftRegionalRanking || ""}
                     onChange={(e) => setFormData({ ...formData, ftRegionalRanking: e.target.value ? parseInt(e.target.value) : undefined })}
+                    disabled={isSubmitting}
                   />
                 </div>
                 <div>
@@ -534,6 +567,7 @@ export function UniversityForm({
                     type="number"
                     value={formData.ftRankingYear || ""}
                     onChange={(e) => setFormData({ ...formData, ftRankingYear: e.target.value ? parseInt(e.target.value) : undefined })}
+                    disabled={isSubmitting}
                   />
                 </div>
               </div>
@@ -546,6 +580,7 @@ export function UniversityForm({
                     type="number"
                     value={formData.usNewsRanking || ""}
                     onChange={(e) => setFormData({ ...formData, usNewsRanking: e.target.value ? parseInt(e.target.value) : undefined })}
+                    disabled={isSubmitting}
                   />
                 </div>
                 <div>
@@ -555,6 +590,7 @@ export function UniversityForm({
                     type="number"
                     value={formData.qsRanking || ""}
                     onChange={(e) => setFormData({ ...formData, qsRanking: e.target.value ? parseInt(e.target.value) : undefined })}
+                    disabled={isSubmitting}
                   />
                 </div>
                 <div>
@@ -564,6 +600,7 @@ export function UniversityForm({
                     type="number"
                     value={formData.timesRanking || ""}
                     onChange={(e) => setFormData({ ...formData, timesRanking: e.target.value ? parseInt(e.target.value) : undefined })}
+                    disabled={isSubmitting}
                   />
                 </div>
               </div>
@@ -580,6 +617,7 @@ export function UniversityForm({
                     step="0.1"
                     value={formData.acceptanceRate || ""}
                     onChange={(e) => setFormData({ ...formData, acceptanceRate: e.target.value ? parseFloat(e.target.value) : undefined })}
+                    disabled={isSubmitting}
                   />
                 </div>
                 <div>
@@ -590,6 +628,7 @@ export function UniversityForm({
                     step="0.1"
                     value={formData.minimumGpa || ""}
                     onChange={(e) => setFormData({ ...formData, minimumGpa: e.target.value ? parseFloat(e.target.value) : undefined })}
+                    disabled={isSubmitting}
                   />
                 </div>
               </div>
@@ -602,6 +641,7 @@ export function UniversityForm({
                     type="number"
                     value={formData.gmatAverageScore || ""}
                     onChange={(e) => setFormData({ ...formData, gmatAverageScore: e.target.value ? parseInt(e.target.value) : undefined })}
+                    disabled={isSubmitting}
                   />
                 </div>
                 <div>
@@ -611,6 +651,7 @@ export function UniversityForm({
                     type="number"
                     value={formData.gmatScoreMin || ""}
                     onChange={(e) => setFormData({ ...formData, gmatScoreMin: e.target.value ? parseInt(e.target.value) : undefined })}
+                    disabled={isSubmitting}
                   />
                 </div>
                 <div>
@@ -620,6 +661,7 @@ export function UniversityForm({
                     type="number"
                     value={formData.gmatScoreMax || ""}
                     onChange={(e) => setFormData({ ...formData, gmatScoreMax: e.target.value ? parseInt(e.target.value) : undefined })}
+                    disabled={isSubmitting}
                   />
                 </div>
               </div>
@@ -631,6 +673,7 @@ export function UniversityForm({
                   value={formData.languageTestRequirements || ""}
                   onChange={(e) => setFormData({ ...formData, languageTestRequirements: e.target.value })}
                   rows={2}
+                  disabled={isSubmitting}
                 />
               </div>
 
@@ -643,6 +686,7 @@ export function UniversityForm({
                     value={formData.tuitionFees || ""}
                     onChange={(e) => setFormData({ ...formData, tuitionFees: e.target.value ? parseFloat(e.target.value) : undefined })}
                     onBlur={calculateTotalCost}
+                    disabled={isSubmitting}
                   />
                 </div>
                 <div>
@@ -653,6 +697,7 @@ export function UniversityForm({
                     value={formData.additionalFees || ""}
                     onChange={(e) => setFormData({ ...formData, additionalFees: e.target.value ? parseFloat(e.target.value) : undefined })}
                     onBlur={calculateTotalCost}
+                    disabled={isSubmitting}
                   />
                 </div>
               </div>
@@ -666,6 +711,7 @@ export function UniversityForm({
                     value={formData.totalCost || ""}
                     onChange={(e) => setFormData({ ...formData, totalCost: e.target.value ? parseFloat(e.target.value) : undefined })}
                     readOnly
+                    disabled={isSubmitting}
                   />
                 </div>
                 <div>
@@ -673,6 +719,7 @@ export function UniversityForm({
                   <Select
                     value={formData.currency }
                     onValueChange={(value) => setFormData({ ...formData, currency: value })}
+                    disabled={isSubmitting}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -697,6 +744,7 @@ export function UniversityForm({
                     type="email"
                     value={formData.admissionsOfficeContact || ""}
                     onChange={(e) => setFormData({ ...formData, admissionsOfficeContact: e.target.value })}
+                    disabled={isSubmitting}
                   />
                 </div>
                 <div>
@@ -706,6 +754,7 @@ export function UniversityForm({
                     type="email"
                     value={formData.internationalOfficeContact || ""}
                     onChange={(e) => setFormData({ ...formData, internationalOfficeContact: e.target.value })}
+                    disabled={isSubmitting}
                   />
                 </div>
                 <div>
@@ -715,6 +764,7 @@ export function UniversityForm({
                     type="email"
                     value={formData.generalInquiriesContact || ""}
                     onChange={(e) => setFormData({ ...formData, generalInquiriesContact: e.target.value })}
+                    disabled={isSubmitting}
                   />
                 </div>
               </div>
@@ -726,6 +776,7 @@ export function UniversityForm({
                     id="averageDeadlines"
                     value={formData.averageDeadlines || ""}
                     onChange={(e) => setFormData({ ...formData, averageDeadlines: e.target.value })}
+                    disabled={isSubmitting}
                   />
                 </div>
                 <div>
@@ -738,6 +789,7 @@ export function UniversityForm({
                       ...formData, 
                       studentsPerYear: e.target.value ? parseInt(e.target.value) : undefined 
                     })}
+                    disabled={isSubmitting}
                   />
                 </div>
               </div>
@@ -753,6 +805,7 @@ export function UniversityForm({
                       ...formData, 
                       averageProgramLengthMonths: e.target.value ? parseInt(e.target.value) : undefined 
                     })}
+                    disabled={isSubmitting}
                   />
                 </div>
                 <div>
@@ -761,6 +814,7 @@ export function UniversityForm({
                     id="intakes"
                     value={formData.intakes || ""}
                     onChange={(e) => setFormData({ ...formData, intakes: e.target.value })}
+                    disabled={isSubmitting}
                   />
                 </div>
               </div>
@@ -777,6 +831,7 @@ export function UniversityForm({
                     })
                   }
                   rows={3}
+                  disabled={isSubmitting}
                 />
               </div>
 
@@ -787,6 +842,7 @@ export function UniversityForm({
                   value={formData.scholarshipInfo || ""}
                   onChange={(e) => setFormData({ ...formData, scholarshipInfo: e.target.value })}
                   rows={3}
+                  disabled={isSubmitting}
                 />
               </div>
 
@@ -797,6 +853,7 @@ export function UniversityForm({
                   value={formData.financialAidDetails || ""}
                   onChange={(e) => setFormData({ ...formData, financialAidDetails: e.target.value })}
                   rows={3}
+                  disabled={isSubmitting}
                 />
               </div>
 
@@ -807,6 +864,7 @@ export function UniversityForm({
                   value={formData.accreditationDetails || ""}
                   onChange={(e) => setFormData({ ...formData, accreditationDetails: e.target.value })}
                   rows={3}
+                  disabled={isSubmitting}
                 />
               </div>
             </TabsContent>
@@ -834,6 +892,7 @@ export function UniversityForm({
                   id="metaTitle"
                   value={formData.metaTitle || ""}
                   onChange={(e) => setFormData({ ...formData, metaTitle: e.target.value })}
+                  disabled={isSubmitting}
                 />
               </div>
 
@@ -844,6 +903,7 @@ export function UniversityForm({
                   value={formData.metaDescription || ""}
                   onChange={(e) => setFormData({ ...formData, metaDescription: e.target.value })}
                   rows={3}
+                  disabled={isSubmitting}
                 />
               </div>
 
@@ -853,6 +913,7 @@ export function UniversityForm({
                   id="metaKeywords"
                   value={formData.metaKeywords || ""}
                   onChange={(e) => setFormData({ ...formData, metaKeywords: e.target.value })}
+                  disabled={isSubmitting}
                 />
               </div>
 
@@ -863,19 +924,34 @@ export function UniversityForm({
                   type="url"
                   value={formData.canonicalUrl || ""}
                   onChange={(e) => setFormData({ ...formData, canonicalUrl: e.target.value })}
+                  disabled={isSubmitting}
                 />
               </div>
             </TabsContent>
           </Tabs>
 
           <div className="flex justify-end space-x-2 mt-6">
-            <Button type="button" variant="outline" onClick={onClose}>
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={onClose}
+              disabled={isSubmitting}
+            >
               <X className="h-4 w-4 mr-2" />
               Cancel
             </Button>
-            <Button type="submit">
-              <Save className="h-4 w-4 mr-2" />
-              {university ? "Update University" : "Create University"}
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  {university ? "Updating..." : "Creating..."}
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-2" />
+                  {university ? "Update University" : "Create University"}
+                </>
+              )}
             </Button>
           </div>
         </form>

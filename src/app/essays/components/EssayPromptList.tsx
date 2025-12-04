@@ -1,17 +1,27 @@
+// EssayPromptList.tsx
 import React from 'react';
-import { Edit, Eye, Users, CheckCircle, XCircle, Calendar } from 'lucide-react';
+import { Edit, Eye, Users, CheckCircle, XCircle, Calendar, FileText, AlertCircle } from 'lucide-react';
 
-// ================== INTERFACES ==================
 interface Admission {
-  name: string;
+  university?: {
+    universityName: string;
+  };
+  program?: {
+    programName: string;
+  };
 }
 
 interface Program {
   programName: string;
+  university?: {
+    universityName: string;
+  };
 }
 
 interface Intake {
-  name: string;
+  intakeName: string;
+  intakeType: string;
+  intakeYear: number;
 }
 
 interface Count {
@@ -28,9 +38,9 @@ export interface EssayPrompt {
   isActive: boolean;
   createdAt: string | Date;
   _count?: Count;
-  admission?: Admission;
-  program?: Program;
-  intake?: Intake;
+  admission?: Admission | null;
+  program?: Program | null;
+  intake?: Intake | null;
 }
 
 interface EssayPromptListProps {
@@ -44,121 +54,168 @@ const EssayPromptList: React.FC<EssayPromptListProps> = ({
   onEdit, 
   onViewDetail 
 }) => {
-  const getStatusColor = (isActive: boolean) => {
-    return isActive 
-      ? 'text-green-600 bg-green-100' 
-      : 'text-red-600 bg-red-100';
+  const formatDate = (date: string | Date) => {
+    try {
+      return new Date(date).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
+    } catch {
+      return 'N/A';
+    }
   };
 
-  const getMandatoryBadge = (isMandatory: boolean) => {
-    return isMandatory ? (
-      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-        Mandatory
-      </span>
-    ) : (
-      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-        Optional
-      </span>
+  if (prompts.length === 0) {
+    return (
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+        <div className="p-12 text-center">
+          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <FileText className="w-8 h-8 text-gray-400" />
+          </div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">No essay prompts found</h3>
+          <p className="text-gray-500 max-w-sm mx-auto">
+            Create your first essay prompt to get started with collecting student essays.
+          </p>
+        </div>
+      </div>
     );
-  };
+  }
 
   return (
-    <div className="bg-white rounded-lg shadow-sm">
-      <div className="px-6 py-4 border-b border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-900">Essay Prompts</h3>
-        <p className="text-sm text-gray-500">Manage essay prompts for applications</p>
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <div className="px-6 py-5 border-b border-gray-200 bg-gray-50">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">Essay Prompts</h3>
+            <p className="text-sm text-gray-500 mt-1">
+              {prompts.length} prompt{prompts.length !== 1 ? 's' : ''} configured
+            </p>
+          </div>
+        </div>
       </div>
 
-      <div className="divide-y divide-gray-200">
+      <div className="divide-y divide-gray-100">
         {prompts.map((prompt) => (
-          <div key={prompt.id} className="p-6 hover:bg-gray-50 transition-colors">
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <div className="flex items-center gap-3 mb-2">
-                  <h4 className="text-lg font-medium text-gray-900">{prompt.promptTitle}</h4>
-                  {getMandatoryBadge(prompt.isMandatory)}
-                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(prompt.isActive)}`}>
-                    {prompt.isActive ? (
-                      <>
-                        <CheckCircle size={12} className="mr-1" />
-                        Active
-                      </>
-                    ) : (
-                      <>
-                        <XCircle size={12} className="mr-1" />
-                        Inactive
-                      </>
-                    )}
-                  </span>
+          <div 
+            key={prompt.id} 
+            className="p-6 hover:bg-gray-50 transition-colors duration-150"
+          >
+            <div className="flex gap-4">
+              {/* Main Content */}
+              <div className="flex-1 min-w-0">
+                {/* Header */}
+                <div className="flex items-start justify-between gap-4 mb-3">
+                  <div className="flex-1 min-w-0">
+                    <h4 className="text-base font-semibold text-gray-900 mb-1">
+                      {prompt.promptTitle}
+                    </h4>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {/* Mandatory Badge */}
+                      {prompt.isMandatory ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-red-50 text-red-700 border border-red-200">
+                          <AlertCircle size={12} />
+                          Mandatory
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                          Optional
+                        </span>
+                      )}
+                      
+                      {/* Active Status */}
+                      <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border ${
+                        prompt.isActive 
+                          ? 'bg-green-50 text-green-700 border-green-200' 
+                          : 'bg-gray-100 text-gray-600 border-gray-200'
+                      }`}>
+                        {prompt.isActive ? (
+                          <>
+                            <CheckCircle size={12} />
+                            Active
+                          </>
+                        ) : (
+                          <>
+                            <XCircle size={12} />
+                            Inactive
+                          </>
+                        )}
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
-                <p className="text-gray-600 mb-3 line-clamp-2">{prompt.promptText}</p>
+                {/* Prompt Text Preview */}
+                <p className="text-sm text-gray-600 line-clamp-2 mb-4 bg-gray-50 p-3 rounded-lg border border-gray-100">
+                  {prompt.promptText}
+                </p>
 
-                <div className="flex items-center gap-6 text-sm text-gray-500">
-                  <div className="flex items-center gap-1">
+                {/* Stats Row */}
+                <div className="flex items-center flex-wrap gap-4 text-sm mb-4">
+                  <div className="flex items-center gap-1.5 text-gray-600">
                     <Users size={14} />
-                    <span>{prompt._count?.submissions || 0} submissions</span>
+                    <span className="font-medium">{prompt._count?.submissions || 0}</span>
+                    <span>submissions</span>
                   </div>
-                  <div>
-                    Word limit: {prompt.minWordCount} - {prompt.wordLimit}
+                  
+                  <div className="flex items-center gap-1.5 text-gray-600">
+                    <FileText size={14} />
+                    <span>{prompt.minWordCount} - {prompt.wordLimit} words</span>
                   </div>
-                  <div className="flex items-center gap-1">
+                  
+                  <div className="flex items-center gap-1.5 text-gray-500">
                     <Calendar size={14} />
-                    <span>{new Date(prompt.createdAt).toLocaleDateString()}</span>
+                    <span>{formatDate(prompt.createdAt)}</span>
                   </div>
                 </div>
 
-                <div className="mt-2 flex items-center gap-4 text-sm text-gray-500">
-                  {prompt.admission && (
-                    <span className="bg-gray-100 px-2 py-1 rounded">
-                      {prompt.admission.name}
+                {/* Relations Tags */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  {prompt.admission?.university && prompt.admission?.program && (
+                    <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200">
+                      📚 {prompt.admission.university.universityName} - {prompt.admission.program.programName}
                     </span>
                   )}
                   {prompt.program && (
-                    <span className="bg-blue-100 px-2 py-1 rounded">
-                      {prompt.program.programName}
+                    <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                      🎓 {prompt.program.programName}
+                      {prompt.program.university && ` - ${prompt.program.university.universityName}`}
                     </span>
                   )}
                   {prompt.intake && (
-                    <span className="bg-green-100 px-2 py-1 rounded">
-                      {prompt.intake.name}
+                    <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium bg-green-50 text-green-700 border border-green-200">
+                      📅 {prompt.intake.intakeName} ({prompt.intake.intakeType} {prompt.intake.intakeYear})
+                    </span>
+                  )}
+                  {!prompt.admission && !prompt.program && !prompt.intake && (
+                    <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                      🌐 General Prompt
                     </span>
                   )}
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 ml-4">
+              {/* Action Buttons */}
+              <div className="flex flex-col gap-2 flex-shrink-0">
                 <button
                   onClick={() => onViewDetail(prompt)}
-                  className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                  className="p-2.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-transparent hover:border-blue-200"
                   title="View details"
                 >
-                  <Eye size={16} />
+                  <Eye size={18} />
                 </button>
                 <button
                   onClick={() => onEdit(prompt)}
-                  className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                  className="p-2.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors border border-transparent hover:border-green-200"
                   title="Edit prompt"
                 >
-                  <Edit size={16} />
+                  <Edit size={18} />
                 </button>
               </div>
             </div>
           </div>
         ))}
       </div>
-
-      {prompts.length === 0 && (
-        <div className="p-12 text-center">
-          <div className="text-gray-400 mb-4">
-            <svg className="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-          </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No essay prompts found</h3>
-          <p className="text-gray-500">Create your first essay prompt to get started.</p>
-        </div>
-      )}
     </div>
   );
 };

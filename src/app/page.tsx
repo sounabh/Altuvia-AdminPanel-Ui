@@ -1,6 +1,9 @@
-// app/page.tsx
-import Dashboard from "@/components/Dashboard";
+import React from 'react'
 
-export default function HomePage() {
-  return <Dashboard />;
+const page = () => {
+  return (
+    <div>page</div>
+  )
 }
+
+export default page

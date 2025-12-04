@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable @typescript-eslint/prefer-as-const */
 "use server";
-import {prisma} from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 
 // ================== TYPES ==================
 export interface EssayPrompt {
@@ -99,7 +98,7 @@ export interface Program {
   universityId: string;
   university?: {
     universityName: string;
-  };
+  } | null;
 }
 
 export interface AdmissionWithRelations {
@@ -163,10 +162,16 @@ export const updateEssayPrompt = async (id: string, data: EssayPromptUpdateInput
 
 // Delete an essay prompt
 export const deleteEssayPrompt = async (id: string): Promise<void> => {
+  // Delete related essays first
+  await prisma.essay.deleteMany({
+    where: { essayPromptId: id }
+  });
+
+  // Also delete from EssaySubmission if exists
   await prisma.essaySubmission.deleteMany({
     where: { essayPromptId: id }
   });
-  
+
   await prisma.essayPrompt.delete({
     where: { id }
   });
@@ -174,8 +179,8 @@ export const deleteEssayPrompt = async (id: string): Promise<void> => {
 
 // Create a new essay submission
 export const createEssaySubmission = async (data: EssaySubmissionInput): Promise<EssaySubmission> => {
-  const wordCount = data.content.split(/\s+/).length;
-  
+  const wordCount = data.content.split(/\s+/).filter(word => word.length > 0).length;
+
   return await prisma.essaySubmission.create({
     data: {
       essayPromptId: data.essayPromptId,
@@ -194,12 +199,12 @@ export const createEssaySubmission = async (data: EssaySubmissionInput): Promise
 
 // Update an existing essay submission
 export const updateEssaySubmission = async (id: string, data: EssaySubmissionUpdateInput): Promise<EssaySubmission> => {
-  const updateData: Partial<EssaySubmission> = {
+  const updateData: any = {
     title: data.title !== undefined ? data.title : undefined,
-    status: data.status as "DRAFT" | "SUBMITTED" | "UNDER_REVIEW" | "ACCEPTED" | "REJECTED" | undefined,
+    status: data.status,
     isUsingTemplate: data.isUsingTemplate,
     templateVersion: data.templateVersion !== undefined ? data.templateVersion : undefined,
-    reviewStatus: data.reviewStatus as "PENDING" | "REVIEWED" | undefined,
+    reviewStatus: data.reviewStatus,
     reviewerId: data.reviewerId !== undefined ? data.reviewerId : undefined,
     reviewerComment: data.reviewerComment,
     internalRating: data.internalRating,
@@ -208,7 +213,7 @@ export const updateEssaySubmission = async (id: string, data: EssaySubmissionUpd
 
   if (data.content !== undefined) {
     updateData.content = data.content;
-    updateData.wordCount = data.content.split(/\s+/).length;
+    updateData.wordCount = data.content.split(/\s+/).filter(word => word.length > 0).length;
   }
 
   if (data.status === "SUBMITTED") {
@@ -221,152 +226,313 @@ export const updateEssaySubmission = async (id: string, data: EssaySubmissionUpd
   }) as EssaySubmission;
 };
 
-// Fetch all essay prompts with relations
+// ✅ FIXED: Fetch all essay prompts with essay count from Essay table
 export const getEssayPrompts = async () => {
-  return await prisma.essayPrompt.findMany({
-    include: {
-      admission: {
-        include: {
-          university: {
-            select: {
-              universityName: true,
-              city: true,
-              country: true
-            }
-          },
-          program: {
-            select: {
-              programName: true,
-              degreeType: true
-            }
-          }
-        }
-      },
-      program: {
-        include: {
-          university: {
-            select: {
-              universityName: true
+  try {
+    const prompts = await prisma.essayPrompt.findMany({
+      include: {
+        admission: {
+          include: {
+            university: {
+              select: {
+                universityName: true,
+                city: true,
+                country: true
+              }
+            },
+            program: {
+              select: {
+                programName: true,
+                degreeType: true
+              }
             }
           }
-        }
+        },
+        program: {
+          include: {
+            university: {
+              select: {
+                universityName: true
+              }
+            }
+          }
+        },
+        intake: true
       },
-      intake: true,
+      orderBy: { createdAt: 'desc' }
+    });
+
+    // Filter out any prompts with invalid relations
+    const validPrompts = prompts.filter(prompt => {
+      if (prompt.admission && !prompt.admission.university) return false;
+      if (prompt.program && !prompt.program.university) return false;
+      return true;
+    });
+
+    // ✅ Get essay counts from Essay table
+    const promptIds = validPrompts.map(p => p.id);
+    const essayCounts = await prisma.essay.groupBy({
+      by: ['essayPromptId'],
+      where: {
+        essayPromptId: { in: promptIds }
+      },
       _count: {
-        select: { submissions: true }
+        id: true
       }
-    },
-    orderBy: { createdAt: 'desc' }
-  });
+    });
+
+    // Create a map for quick lookup
+    const countsMap = new Map<string, number>();
+    essayCounts.forEach(item => {
+      if (item.essayPromptId) {
+        countsMap.set(item.essayPromptId, item._count.id);
+      }
+    });
+
+    // Merge counts with prompts
+    return validPrompts.map(prompt => ({
+      ...prompt,
+      _count: {
+        submissions: countsMap.get(prompt.id) || 0
+      }
+    }));
+  } catch (error) {
+    console.error('Error fetching essay prompts:', error);
+    return [];
+  }
 };
 
-// Fetch essay prompts with filters
+// ✅ FIXED: Fetch essay prompts with filters and essay count from Essay table
 export const getEssayPromptsWithFilters = async (filters: {
   universityId?: string;
   programId?: string;
   admissionId?: string;
+  intakeId?: string;
+  isMandatory?: boolean;
   isActive?: boolean;
 }) => {
-  const where: any = {};
-  
-  if (filters.admissionId) {
-    where.admissionId = filters.admissionId;
-  }
-  
-  if (filters.programId) {
-    where.programId = filters.programId;
-  }
-  
-  if (filters.universityId) {
-    where.admission = {
-      universityId: filters.universityId
-    };
-  }
-  
-  if (filters.isActive !== undefined) {
-    where.isActive = filters.isActive;
-  }
+  try {
+    const where: any = {};
 
-  return await prisma.essayPrompt.findMany({
-    where,
-    include: {
-      admission: {
-        include: {
-          university: {
-            select: {
-              universityName: true,
-              city: true,
-              country: true
-            }
-          },
-          program: {
-            select: {
-              programName: true,
-              degreeType: true
-            }
-          }
-        }
-      },
-      program: {
-        include: {
-          university: {
-            select: {
-              universityName: true
-            }
-          }
-        }
-      },
-      intake: true,
-      _count: {
-        select: { submissions: true }
-      }
-    },
-    orderBy: { createdAt: 'desc' }
-  });
-};
+    if (filters.admissionId) {
+      where.admissionId = filters.admissionId;
+    }
 
-// Fetch all essay submissions with relations
-export const getEssaySubmissions = async () => {
-  return await prisma.essaySubmission.findMany({
-    include: {
-      essayPrompt: {
-        select: {
-          promptTitle: true,
-          wordLimit: true,
+    if (filters.programId) {
+      where.programId = filters.programId;
+    }
+
+    if (filters.intakeId) {
+      where.intakeId = filters.intakeId;
+    }
+
+    if (filters.isMandatory !== undefined) {
+      where.isMandatory = filters.isMandatory;
+    }
+
+    if (filters.isActive !== undefined) {
+      where.isActive = filters.isActive;
+    }
+
+    // University filter checks BOTH admission AND program relations
+    if (filters.universityId) {
+      where.OR = [
+        {
           admission: {
-            include: {
-              university: {
-                select: {
-                  universityName: true
-                }
-              },
-              program: {
-                select: {
-                  programName: true
-                }
+            universityId: filters.universityId
+          }
+        },
+        {
+          program: {
+            universityId: filters.universityId
+          }
+        }
+      ];
+    }
+
+    const prompts = await prisma.essayPrompt.findMany({
+      where,
+      include: {
+        admission: {
+          include: {
+            university: {
+              select: {
+                universityName: true,
+                city: true,
+                country: true
+              }
+            },
+            program: {
+              select: {
+                programName: true,
+                degreeType: true
               }
             }
           }
-        }
+        },
+        program: {
+          include: {
+            university: {
+              select: {
+                universityName: true
+              }
+            }
+          }
+        },
+        intake: true
       },
-      user: {
-        select: {
-          id: true,
-          name: true,
-          email: true
-        }
+      orderBy: { createdAt: 'desc' }
+    });
+
+    // Filter out any prompts with invalid relations
+    const validPrompts = prompts.filter(prompt => {
+      if (prompt.admission && !prompt.admission.university) return false;
+      if (prompt.program && !prompt.program.university) return false;
+      return true;
+    });
+
+    // ✅ Get essay counts from Essay table
+    const promptIds = validPrompts.map(p => p.id);
+    const essayCounts = await prisma.essay.groupBy({
+      by: ['essayPromptId'],
+      where: {
+        essayPromptId: { in: promptIds }
       },
-      application: {
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          email: true
-        }
+      _count: {
+        id: true
       }
-    },
-    orderBy: { createdAt: 'desc' }
-  });
+    });
+
+    // Create a map for quick lookup
+    const countsMap = new Map<string, number>();
+    essayCounts.forEach(item => {
+      if (item.essayPromptId) {
+        countsMap.set(item.essayPromptId, item._count.id);
+      }
+    });
+
+    // Merge counts with prompts
+    return validPrompts.map(prompt => ({
+      ...prompt,
+      _count: {
+        submissions: countsMap.get(prompt.id) || 0
+      }
+    }));
+  } catch (error) {
+    console.error('Error fetching essay prompts with filters:', error);
+    return [];
+  }
+};
+
+// Fetch all essays from Essay table
+export const getEssaySubmissions = async () => {
+  try {
+    const essays = await prisma.essay.findMany({
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        },
+        application: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true
+          }
+        },
+        program: {
+          select: {
+            id: true,
+            programName: true,
+            degreeType: true,
+            university: {
+              select: {
+                universityName: true,
+                city: true,
+                country: true
+              }
+            }
+          }
+        },
+        essayPrompt: {
+          select: {
+            id: true,
+            promptTitle: true,
+            promptText: true,
+            wordLimit: true
+          }
+        },
+        _count: {
+          select: {
+            versions: true,
+            aiResults: true,
+            completionLogs: true
+          }
+        }
+      },
+      orderBy: { lastModified: 'desc' }
+    });
+
+    // Filter out essays with invalid relations (orphaned data)
+    const validEssays = essays.filter(essay => essay.program?.university !== null);
+
+    return validEssays.map(essay => ({
+      id: essay.id,
+      essayPromptId: essay.essayPromptId,
+      userId: essay.userId,
+      applicationId: essay.applicationId,
+      title: essay.title,
+      content: essay.content,
+      wordCount: essay.wordCount,
+      isUsingTemplate: false,
+      templateVersion: null,
+      status: essay.status as any,
+      reviewStatus: essay.isCompleted ? "REVIEWED" : "PENDING",
+      reviewerId: null,
+      reviewerComment: null,
+      internalRating: null,
+      submissionDate: essay.completedAt,
+      lastEditedAt: essay.lastModified,
+      createdAt: essay.createdAt,
+      updatedAt: essay.updatedAt,
+      essayPrompt: essay.essayPrompt ? {
+        id: essay.essayPrompt.id,
+        promptTitle: essay.essayPrompt.promptTitle,
+        promptText: essay.essayPrompt.promptText,
+        wordLimit: essay.essayPrompt.wordLimit,
+        admission: null
+      } : {
+        id: '',
+        promptTitle: essay.title || 'Untitled',
+        promptText: '',
+        wordLimit: essay.wordCount,
+        admission: {
+          university: {
+            universityName: essay.program?.university?.universityName || 'N/A'
+          },
+          program: {
+            programName: essay.program?.programName || 'N/A'
+          }
+        }
+      },
+      user: essay.user,
+      application: essay.application,
+      _count: essay._count,
+      completionPercentage: essay.completionPercentage,
+      priority: essay.priority,
+      isCompleted: essay.isCompleted,
+      completedAt: essay.completedAt,
+      lastModified: essay.lastModified,
+      program: essay.program
+    }));
+  } catch (error) {
+    console.error('Error fetching essays:', error);
+    return [];
+  }
 };
 
 // Fetch essay submissions with filters
@@ -375,152 +541,350 @@ export const getEssaySubmissionsWithFilters = async (filters: {
   reviewStatus?: string;
   universityId?: string;
   programId?: string;
+  priority?: string;
+  isCompleted?: boolean;
+  hasAIAnalysis?: boolean;
 }) => {
-  const where: any = {};
-  
-  if (filters.status) {
-    where.status = filters.status;
-  }
-  
-  if (filters.reviewStatus) {
-    where.reviewStatus = filters.reviewStatus;
-  }
-  
-  if (filters.universityId || filters.programId) {
-    where.essayPrompt = {};
-    
+  try {
+    const where: any = {};
+
+    if (filters.status) {
+      where.status = filters.status;
+    }
+
+    if (filters.priority) {
+      where.priority = filters.priority;
+    }
+
+    if (filters.isCompleted !== undefined) {
+      where.isCompleted = filters.isCompleted;
+    }
+
+    if (filters.programId) {
+      where.programId = filters.programId;
+    }
+
+    // University filter
     if (filters.universityId) {
-      where.essayPrompt.admission = {
+      where.program = {
         universityId: filters.universityId
       };
     }
-    
-    if (filters.programId) {
-      where.essayPrompt.programId = filters.programId;
-    }
-  }
 
-  return await prisma.essaySubmission.findMany({
-    where,
-    include: {
-      essayPrompt: {
-        select: {
-          promptTitle: true,
-          wordLimit: true,
-          admission: {
-            include: {
-              university: {
-                select: {
-                  universityName: true
-                }
-              },
-              program: {
-                select: {
-                  programName: true
-                }
+    const essays = await prisma.essay.findMany({
+      where,
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        },
+        application: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true
+          }
+        },
+        program: {
+          select: {
+            id: true,
+            programName: true,
+            degreeType: true,
+            university: {
+              select: {
+                universityName: true,
+                city: true,
+                country: true
               }
             }
           }
+        },
+        essayPrompt: {
+          select: {
+            id: true,
+            promptTitle: true,
+            promptText: true,
+            wordLimit: true
+          }
+        },
+        _count: {
+          select: {
+            versions: true,
+            aiResults: true,
+            completionLogs: true
+          }
         }
       },
-      user: {
-        select: {
-          id: true,
-          name: true,
-          email: true
+      orderBy: { lastModified: 'desc' }
+    });
+
+    // Filter out essays with invalid relations (orphaned data)
+    let filteredEssays = essays.filter(essay => essay.program?.university !== null);
+
+    // Filter by AI analysis if needed
+    if (filters.hasAIAnalysis !== undefined) {
+      filteredEssays = filteredEssays.filter(essay =>
+        filters.hasAIAnalysis
+          ? essay._count.aiResults > 0
+          : essay._count.aiResults === 0
+      );
+    }
+
+    // Filter by review status (client-side since it's derived from isCompleted)
+    if (filters.reviewStatus) {
+      filteredEssays = filteredEssays.filter(essay => {
+        if (filters.reviewStatus === "REVIEWED") return essay.isCompleted;
+        if (filters.reviewStatus === "PENDING") return !essay.isCompleted;
+        return true;
+      });
+    }
+
+    return filteredEssays.map(essay => ({
+      id: essay.id,
+      essayPromptId: essay.essayPromptId,
+      userId: essay.userId,
+      applicationId: essay.applicationId,
+      title: essay.title,
+      content: essay.content,
+      wordCount: essay.wordCount,
+      isUsingTemplate: false,
+      templateVersion: null,
+      status: essay.status as any,
+      reviewStatus: essay.isCompleted ? "REVIEWED" : "PENDING",
+      reviewerId: null,
+      reviewerComment: null,
+      internalRating: null,
+      submissionDate: essay.completedAt,
+      lastEditedAt: essay.lastModified,
+      createdAt: essay.createdAt,
+      updatedAt: essay.updatedAt,
+      essayPrompt: essay.essayPrompt ? {
+        id: essay.essayPrompt.id,
+        promptTitle: essay.essayPrompt.promptTitle,
+        promptText: essay.essayPrompt.promptText,
+        wordLimit: essay.essayPrompt.wordLimit,
+        admission: null
+      } : {
+        id: '',
+        promptTitle: essay.title || 'Untitled',
+        promptText: '',
+        wordLimit: essay.wordCount,
+        admission: {
+          university: {
+            universityName: essay.program?.university?.universityName || 'N/A'
+          },
+          program: {
+            programName: essay.program?.programName || 'N/A'
+          }
         }
       },
-      application: {
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          email: true
-        }
-      }
-    },
-    orderBy: { createdAt: 'desc' }
-  });
+      user: essay.user,
+      application: essay.application,
+      _count: essay._count,
+      completionPercentage: essay.completionPercentage,
+      priority: essay.priority,
+      isCompleted: essay.isCompleted,
+      completedAt: essay.completedAt,
+      lastModified: essay.lastModified,
+      program: essay.program
+    }));
+  } catch (error) {
+    console.error('Error fetching essays with filters:', error);
+    return [];
+  }
 };
 
 // Fetch universities
 export const getUniversities = async (): Promise<University[]> => {
-  return await prisma.university.findMany({
-    select: {
-      id: true,
-      universityName: true,
-      city: true,
-      country: true
-    },
-    orderBy: { universityName: 'asc' }
-  });
+  try {
+    return await prisma.university.findMany({
+      select: {
+        id: true,
+        universityName: true,
+        city: true,
+        country: true
+      },
+      orderBy: { universityName: 'asc' }
+    });
+  } catch (error) {
+    console.error('Error fetching universities:', error);
+    return [];
+  }
 };
 
 // Fetch programs
 export const getPrograms = async (): Promise<Program[]> => {
-  return await prisma.program.findMany({
-    select: {
-      id: true,
-      programName: true,
-      degreeType: true,
-      universityId: true,
-      university: {
-        select: {
-          universityName: true
+  try {
+    const programs = await prisma.program.findMany({
+      select: {
+        id: true,
+        programName: true,
+        degreeType: true,
+        universityId: true,
+        university: {
+          select: {
+            universityName: true
+          }
         }
-      }
-    },
-    orderBy: { programName: 'asc' }
-  });
+      },
+      orderBy: { programName: 'asc' }
+    });
+
+    // Filter out programs with null universities (orphaned data)
+    return programs.filter(program => program.university !== null) as Program[];
+  } catch (error) {
+    console.error('Error fetching programs:', error);
+    return [];
+  }
 };
 
 // Fetch admissions with relations
 export const getAdmissions = async (): Promise<AdmissionWithRelations[]> => {
-  return await prisma.admission.findMany({
-    include: {
-      university: {
-        select: {
-          universityName: true,
-          city: true,
-          country: true
+  try {
+    const admissions = await prisma.admission.findMany({
+      include: {
+        university: {
+          select: {
+            universityName: true,
+            city: true,
+            country: true
+          }
+        },
+        program: {
+          select: {
+            programName: true,
+            degreeType: true
+          }
         }
       },
-      program: {
-        select: {
-          programName: true,
-          degreeType: true
-        }
-      }
-    },
-    orderBy: { createdAt: 'desc' }
-  });
+      orderBy: { createdAt: 'desc' }
+    });
+
+    // Filter out admissions with invalid relations
+    return admissions.filter(admission =>
+      admission.university !== null && admission.program !== null
+    ) as AdmissionWithRelations[];
+  } catch (error) {
+    console.error('Error fetching admissions:', error);
+    return [];
+  }
 };
 
 // Fetch all intakes
 export const getAllIntakes = async (): Promise<IntakeWithRelations[]> => {
-  return await prisma.intake.findMany({
-    select: {
-      id: true,
-      admissionId: true,
-      intakeName: true,
-      intakeType: true,
-      intakeYear: true
-    },
-    orderBy: { intakeYear: 'desc' }
-  });
+  try {
+    return await prisma.intake.findMany({
+      select: {
+        id: true,
+        admissionId: true,
+        intakeName: true,
+        intakeType: true,
+        intakeYear: true
+      },
+      orderBy: { intakeYear: 'desc' }
+    });
+  } catch (error) {
+    console.error('Error fetching intakes:', error);
+    return [];
+  }
 };
 
 // Fetch intakes for specific admission
 export const getIntakesForAdmission = async (admissionId: string): Promise<IntakeWithRelations[]> => {
-  return await prisma.intake.findMany({
-    where: { admissionId },
-    select: {
-      id: true,
-      admissionId: true,
-      intakeName: true,
-      intakeType: true,
-      intakeYear: true
-    },
-    orderBy: { intakeYear: 'desc' }
-  });
+  try {
+    return await prisma.intake.findMany({
+      where: { admissionId },
+      select: {
+        id: true,
+        admissionId: true,
+        intakeName: true,
+        intakeType: true,
+        intakeYear: true
+      },
+      orderBy: { intakeYear: 'desc' }
+    });
+  } catch (error) {
+    console.error('Error fetching intakes for admission:', error);
+    return [];
+  }
+};
+
+// Fetch detailed essay with all related data
+export const getEssayDetail = async (essayId: string) => {
+  try {
+    const essay = await prisma.essay.findUnique({
+      where: { id: essayId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        },
+        application: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true
+          }
+        },
+        program: {
+          select: {
+            id: true,
+            programName: true,
+            degreeType: true,
+            university: {
+              select: {
+                universityName: true,
+                city: true,
+                country: true
+              }
+            }
+          }
+        },
+        essayPrompt: {
+          select: {
+            id: true,
+            promptTitle: true,
+            promptText: true,
+            wordLimit: true
+          }
+        },
+        versions: {
+          orderBy: { timestamp: 'desc' }
+        },
+        aiResults: {
+          orderBy: { createdAt: 'desc' }
+        },
+        completionLogs: {
+          orderBy: { completedAt: 'desc' }
+        },
+        _count: {
+          select: {
+            versions: true,
+            aiResults: true,
+            completionLogs: true
+          }
+        }
+      }
+    });
+
+    if (!essay) return null;
+
+    const latestAIAnalysis = essay.aiResults[0] || null;
+
+    return {
+      ...essay,
+      latestAIAnalysis
+    };
+  } catch (error) {
+    console.error('Error fetching essay detail:', error);
+    return null;
+  }
 };

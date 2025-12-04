@@ -46,3 +46,5 @@ export interface EssaySubmissionUpdateInput {
   reviewerComment?: string;
   internalRating?: number;
 }
+
+

@@ -1,15 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unused-vars */
-// app/program-management/page.tsx
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Filter, Building, GraduationCap, FileText, Award, ExternalLink, Users } from 'lucide-react';
-import { toast } from 'sonner'; // Changed from useToast to sonner
+import { Search, Plus, Building, GraduationCap, Award, Users, AlertCircle } from 'lucide-react';
+import { toast } from 'sonner';
 import DepartmentList from './components/DepartmentList';
 import ProgramList from './components/ProgramList';
 import ProgramDetail from './components/Programdetail';
-import DepartmentForm from './components/DepartmentForm'; 
+import DepartmentForm from './components/DepartmentForm';
 import ProgramForm from './components/ProgramForm';
 import SearchFilters from './components/SearchFilters';
 import {
@@ -31,6 +30,7 @@ import {
   updateExternalLink,
   deleteExternalLink,
   getUniversities,
+  debugGetAllPrograms,
 } from './actions/action';
 import type {
   DepartmentWithPrograms,
@@ -45,42 +45,70 @@ import type {
   UpdateProgramRankingInput,
   CreateExternalLinkInput,
   UpdateExternalLinkInput,
-  SearchProgramsFilters
+  SearchProgramsFilters,
+  University
 } from './types/programs';
 
-const ProgramManagement = () => {
-  const [activeTab, setActiveTab] = useState<'departments' | 'programs'>('departments');
+type ActiveTab = 'departments' | 'programs';
+type SelectedItemType = DepartmentWithPrograms | ProgramWithFullRelations | null;
+
+interface DebugInfo {
+  totalPrograms: number;
+  programDepartments: number;
+  samplePrograms: any[];
+}
+
+const ProgramManagement: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<ActiveTab>('departments');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showForm, setShowForm] = useState<boolean>(false);
-  const [selectedItem, setSelectedItem] = useState<DepartmentWithPrograms | ProgramWithFullRelations | null>(null);
+  const [selectedItem, setSelectedItem] = useState<SelectedItemType>(null);
   const [filters, setFilters] = useState<SearchProgramsFilters>({
-    universityId: '',
-    departmentId: '',
-    degreeType: '',
-    isActive: true
+    universityId: undefined,
+    departmentIds: [],
+    degreeType: undefined,
+    isActive: undefined // Changed to undefined to show all programs by default
   });
 
   const [departments, setDepartments] = useState<DepartmentWithPrograms[]>([]);
   const [programs, setPrograms] = useState<ProgramSearchResult[]>([]);
-  const [universities, setUniversities] = useState<{ id: string; name: string; slug: string }[]>([]);
+  const [universities, setUniversities] = useState<University[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [isFetching, setIsFetching] = useState<boolean>(true);
+  const [debugInfo, setDebugInfo] = useState<DebugInfo | null>(null);
+  const [showDebug, setShowDebug] = useState<boolean>(false);
 
   // Fetch initial data
   useEffect(() => {
     const fetchData = async () => {
       try {
         setIsFetching(true);
+        
+        // Debug: Check raw program count first
+        const debug = await debugGetAllPrograms();
+        setDebugInfo({
+          totalPrograms: debug.totalPrograms,
+          programDepartments: debug.programDepartments,
+          samplePrograms: debug.programs
+        });
+        console.log('Debug info:', debug);
+
         const [univs, depts, progs] = await Promise.all([
           getUniversities(),
           getDepartmentsByUniversity(),
-          searchPrograms('', {})
+          searchPrograms('', {}) // Empty filters to get all programs
         ]);
-        
+
+        console.log('Fetched universities:', univs.length);
+        console.log('Fetched departments:', depts.length);
+        console.log('Fetched programs:', progs.length);
+        console.log('Programs data:', progs);
+
         setUniversities(univs);
         setDepartments(depts);
         setPrograms(progs);
       } catch (error) {
+        console.error('Fetch error:', error);
         toast.error("Failed to fetch data", {
           description: "Please try again later"
         });
@@ -88,26 +116,35 @@ const ProgramManagement = () => {
         setIsFetching(false);
       }
     };
-    
+
     fetchData();
   }, []);
 
-  const handleCreateNew = () => {
+  const refreshPrograms = async (): Promise<void> => {
+    try {
+      const progs = await searchPrograms('', {});
+      setPrograms(progs);
+    } catch (error) {
+      console.error('Error refreshing programs:', error);
+    }
+  };
+
+  const handleCreateNew = (): void => {
     setSelectedItem(null);
     setShowForm(true);
   };
 
-  const handleEdit = (item: DepartmentWithPrograms | ProgramWithFullRelations) => {
-    setSelectedItem(item);
+  const handleEdit = (item: DepartmentWithPrograms | ProgramWithFullRelations | ProgramSearchResult): void => {
+    setSelectedItem(item as SelectedItemType);
     setShowForm(true);
   };
 
-  const handleFormClose = () => {
+  const handleFormClose = (): void => {
     setShowForm(false);
     setSelectedItem(null);
   };
 
-  const handleFormSubmit = async (data: CreateDepartmentInput | CreateProgramInput) => {
+  const handleFormSubmit = async (data: CreateDepartmentInput | CreateProgramInput): Promise<void> => {
     setLoading(true);
     try {
       if (activeTab === 'departments') {
@@ -124,7 +161,7 @@ const ProgramManagement = () => {
             : "Department created successfully"
           );
         } else {
-          throw new Error((result as any).error || "Operation failed");
+          throw new Error(result.error || "Operation failed");
         }
       } else {
         const input = data as CreateProgramInput;
@@ -133,14 +170,13 @@ const ProgramManagement = () => {
           : await createProgram(input);
         
         if (result.success) {
-          const updatedProgs = await searchPrograms('', {});
-          setPrograms(updatedProgs);
+          await refreshPrograms();
           toast.success(selectedItem?.id 
             ? "Program updated successfully" 
             : "Program created successfully"
           );
         } else {
-          throw new Error(result.error);
+          throw new Error(result.error || "Operation failed");
         }
       }
       setShowForm(false);
@@ -154,7 +190,7 @@ const ProgramManagement = () => {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: string): Promise<void> => {
     try {
       setLoading(true);
       const result = activeTab === 'departments'
@@ -166,12 +202,11 @@ const ProgramManagement = () => {
           const updatedDepts = await getDepartmentsByUniversity();
           setDepartments(updatedDepts);
         } else {
-          const updatedProgs = await searchPrograms('', {});
-          setPrograms(updatedProgs);
+          await refreshPrograms();
         }
         toast.success(`${activeTab === 'departments' ? 'Department' : 'Program'} deleted successfully`);
       } else {
-        throw new Error(result.error);
+        throw new Error(result.error || "Deletion failed");
       }
     } catch (error: any) {
       toast.error("Deletion failed", {
@@ -182,7 +217,7 @@ const ProgramManagement = () => {
     }
   };
 
-  const handleViewDetail = async (item: DepartmentWithPrograms | ProgramSearchResult) => {
+  const handleViewDetail = async (item: DepartmentWithPrograms | ProgramSearchResult): Promise<void> => {
     if ('programName' in item) {
       try {
         setLoading(true);
@@ -200,7 +235,7 @@ const ProgramManagement = () => {
     }
   };
 
-  const handleSyllabusUpload = async (data: CreateSyllabusInput) => {
+  const handleSyllabusUpload = async (data: CreateSyllabusInput): Promise<void> => {
     try {
       setLoading(true);
       const result = await uploadSyllabus(data);
@@ -208,8 +243,8 @@ const ProgramManagement = () => {
         const updatedProgram = await getProgramById(selectedItem.id);
         if (updatedProgram) setSelectedItem(updatedProgram);
         toast.success("Syllabus uploaded successfully");
-      } else {
-        throw new Error((result as any).error || "Syllabus upload failed");
+      } else if (!result.success) {
+        throw new Error(result.error || "Syllabus upload failed");
       }
     } catch (error: any) {
       toast.error("Syllabus upload failed", {
@@ -220,7 +255,7 @@ const ProgramManagement = () => {
     }
   };
 
-  const handleSyllabusDelete = async (programId: string) => {
+  const handleSyllabusDelete = async (programId: string): Promise<void> => {
     try {
       setLoading(true);
       const result = await deleteSyllabus(programId);
@@ -228,8 +263,8 @@ const ProgramManagement = () => {
         const updatedProgram = await getProgramById(selectedItem.id);
         if (updatedProgram) setSelectedItem(updatedProgram);
         toast.success("Syllabus deleted successfully");
-      } else {
-       throw new Error((result as any).error || "Syllabus deletion failed");
+      } else if (!result.success) {
+        throw new Error(result.error || "Syllabus deletion failed");
       }
     } catch (error: any) {
       toast.error("Syllabus deletion failed", {
@@ -244,7 +279,7 @@ const ProgramManagement = () => {
     action: 'create' | 'update' | 'delete',
     data: CreateProgramRankingInput | UpdateProgramRankingInput,
     id?: string
-  ) => {
+  ): Promise<void> => {
     try {
       setLoading(true);
       let result;
@@ -261,8 +296,8 @@ const ProgramManagement = () => {
         const updatedProgram = await getProgramById(selectedItem.id);
         if (updatedProgram) setSelectedItem(updatedProgram);
         toast.success(`Ranking ${action}d successfully`);
-      } else if (!result?.success) {
-        throw new Error(result?.error);
+      } else if (result && !result.success) {
+        throw new Error(result.error);
       }
     } catch (error: any) {
       toast.error(`Ranking ${action} failed`, {
@@ -277,7 +312,7 @@ const ProgramManagement = () => {
     action: 'create' | 'update' | 'delete',
     data: CreateExternalLinkInput | UpdateExternalLinkInput,
     id?: string
-  ) => {
+  ): Promise<void> => {
     try {
       setLoading(true);
       let result;
@@ -294,8 +329,8 @@ const ProgramManagement = () => {
         const updatedProgram = await getProgramById(selectedItem.id);
         if (updatedProgram) setSelectedItem(updatedProgram);
         toast.success(`External link ${action}d successfully`);
-      } else if (!result?.success) {
-        throw new Error(result?.error);
+      } else if (result && !result.success) {
+        throw new Error(result.error);
       }
     } catch (error: any) {
       toast.error(`External link ${action} failed`, {
@@ -315,13 +350,16 @@ const ProgramManagement = () => {
         (!filters.universityId || dept.universityId === filters.universityId)
       );
     } else {
-      return programs.filter(program => 
-        program.programName.toLowerCase().includes(searchQuery.toLowerCase()) &&
-        (!filters.universityId || program.universityId === filters.universityId) &&
-        (!filters.departmentId || program.departmentId === filters.departmentId) &&
-        (!filters.degreeType || program.degreeType === filters.degreeType) &&
-        (filters.isActive === undefined || program.isActive === filters.isActive)
-      );
+      return programs.filter(program => {
+        const matchesSearch = program.programName.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesUniversity = !filters.universityId || program.universityId === filters.universityId;
+        const matchesDepartments = !filters.departmentIds || filters.departmentIds.length === 0 || 
+          program.departments?.some(pd => filters.departmentIds?.includes(pd.department.id));
+        const matchesDegreeType = !filters.degreeType || program.degreeType === filters.degreeType;
+        const matchesActive = filters.isActive === undefined || program.isActive === filters.isActive;
+
+        return matchesSearch && matchesUniversity && matchesDepartments && matchesDegreeType && matchesActive;
+      });
     }
   };
 
@@ -331,6 +369,8 @@ const ProgramManagement = () => {
     activePrograms: programs.filter(p => p.isActive).length,
     totalStudents: programs.reduce((sum, p) => sum + (p._count?.admissions || 0), 0)
   };
+
+  const isProgramSelected = selectedItem && 'programName' in selectedItem;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -342,17 +382,62 @@ const ProgramManagement = () => {
               <h1 className="text-3xl font-bold text-gray-900">Program Management</h1>
               <p className="mt-1 text-sm text-gray-500">Manage departments, programs, and academic resources</p>
             </div>
-            <button
-              onClick={handleCreateNew}
-              disabled={loading}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 transition-colors disabled:opacity-50"
-            >
-              <Plus size={16} />
-              Create New {activeTab === 'departments' ? 'Department' : 'Program'}
-            </button>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setShowDebug(!showDebug)}
+                className="text-sm text-gray-500 hover:text-gray-700"
+              >
+                {showDebug ? 'Hide Debug' : 'Show Debug'}
+              </button>
+              <button 
+                onClick={handleCreateNew} 
+                disabled={loading} 
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 transition-colors disabled:opacity-50"
+              >
+                <Plus size={16} />
+                Create New {activeTab === 'departments' ? 'Department' : 'Program'}
+              </button>
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Debug Panel */}
+      {showDebug && debugInfo && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <div className="flex items-start">
+              <AlertCircle className="h-5 w-5 text-yellow-600 mt-0.5" />
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-yellow-800">Debug Information</h3>
+                <div className="mt-2 text-sm text-yellow-700">
+                  <p><strong>Total Programs in DB:</strong> {debugInfo.totalPrograms}</p>
+                  <p><strong>Program-Department Relations:</strong> {debugInfo.programDepartments}</p>
+                  <p><strong>Programs fetched via searchPrograms:</strong> {programs.length}</p>
+                  {debugInfo.totalPrograms > 0 && debugInfo.programDepartments === 0 && (
+                    <p className="mt-2 text-red-600 font-medium">
+                      ⚠️ Programs exist but have no department associations! 
+                      You need to assign departments to programs.
+                    </p>
+                  )}
+                  {debugInfo.samplePrograms.length > 0 && (
+                    <div className="mt-2">
+                      <p><strong>Sample Programs:</strong></p>
+                      <ul className="list-disc list-inside ml-2">
+                        {debugInfo.samplePrograms.slice(0, 3).map((p: any) => (
+                          <li key={p.id}>
+                            {p.programName} (Depts: {p.departments?.length || 0}, Active: {p.isActive ? 'Yes' : 'No'})
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Stats Cards */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -372,6 +457,11 @@ const ProgramManagement = () => {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Total Programs</p>
                 <p className="text-2xl font-bold text-gray-900">{stats.totalPrograms}</p>
+                {debugInfo && debugInfo.totalPrograms !== stats.totalPrograms && (
+                  <p className="text-xs text-orange-500">
+                    (DB has {debugInfo.totalPrograms})
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -408,7 +498,7 @@ const ProgramManagement = () => {
                 }`}
               >
                 <Building className="inline-block w-4 h-4 mr-2" />
-                Departments
+                Departments ({departments.length})
               </button>
               <button
                 onClick={() => setActiveTab('programs')}
@@ -419,7 +509,7 @@ const ProgramManagement = () => {
                 }`}
               >
                 <GraduationCap className="inline-block w-4 h-4 mr-2" />
-                Programs
+                Programs ({programs.length})
               </button>
             </nav>
           </div>
@@ -455,7 +545,8 @@ const ProgramManagement = () => {
           <div className="lg:col-span-2">
             {isFetching ? (
               <div className="bg-white p-8 rounded-lg shadow-sm text-center">
-                <p>Loading data...</p>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <p className="text-gray-500">Loading data...</p>
               </div>
             ) : activeTab === 'departments' ? (
               <DepartmentList
@@ -475,7 +566,7 @@ const ProgramManagement = () => {
           </div>
           
           <div className="lg:col-span-1">
-            {selectedItem && !showForm && 'programName' in selectedItem && (
+            {isProgramSelected && !showForm && (
               <ProgramDetail
                 program={selectedItem as ProgramWithFullRelations}
                 onEdit={handleEdit}
@@ -496,7 +587,7 @@ const ProgramManagement = () => {
           <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
             {activeTab === 'departments' ? (
               <DepartmentForm
-                department={selectedItem as DepartmentWithPrograms}
+                department={selectedItem as DepartmentWithPrograms | null}
                 universities={universities}
                 onSubmit={handleFormSubmit}
                 onClose={handleFormClose}
@@ -504,7 +595,7 @@ const ProgramManagement = () => {
               />
             ) : (
               <ProgramForm
-                program={selectedItem as ProgramWithFullRelations}
+                program={selectedItem as ProgramWithFullRelations | null}
                 universities={universities}
                 departments={departments}
                 onSubmit={handleFormSubmit}

@@ -1,4 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+
+// Base interfaces
 export interface Department {
   id: string;
   universityId: string;
@@ -11,7 +13,6 @@ export interface Department {
 export interface Program {
   id: string;
   universityId: string;
-  // Remove departmentId field for many-to-many relationship
   programName: string;
   programSlug: string;
   degreeType: string | null;
@@ -54,64 +55,13 @@ export interface ExternalLink {
   createdAt: Date;
 }
 
-// Junction table type
 export interface ProgramDepartment {
   id: string;
   programId: string;
   departmentId: string;
   createdAt: Date;
-  // Relations
   department?: Department;
   program?: Program;
-}
-
-// Extended types with relations
-export interface DepartmentWithPrograms extends Department {
-  programs: Array<{
-    program: Pick<Program, 'id' | 'programName' | 'degreeType' | 'isActive'>;
-  }>;
-  _count: {
-    programs: number;
-  };
-}
-
-export interface ProgramWithRelations extends Program {
-  departments: Array<{
-    department: Department;
-  }>;
-  university: {
-    id: string;
-    universityName: string;
-    slug: string;
-  };
-  syllabus?: Syllabus | null;
-  rankings: ProgramRanking[];
-  externalLinks: ExternalLink[];
-  _count: {
-    admissions: number;
-    scholarships: number;
-    tuitionBreakdowns: number;
-  };
-}
-
-export interface ProgramWithFullRelations extends ProgramWithRelations {
-  admissions: any[]; // Define proper type based on your admission model
-  tuitionBreakdowns: any[]; // Define proper type based on your tuition model
-  scholarships: any[]; // Define proper type based on your scholarship model
-  feeStructures: any[]; // Define proper type based on your fee structure model
-  financialAids: any[]; // Define proper type based on your financial aid model
-  _count: {
-    admissions: number;
-    scholarships: number;
-    tuitionBreakdowns: number;
-    feeStructures: number;
-    financialAids: number;
-    externalLinks: number;
-  };
-}
-
-export interface ProgramSearchResult extends ProgramWithRelations {
-  rankings: ProgramRanking[];
 }
 
 export interface University {
@@ -126,7 +76,69 @@ export interface UniversityForProgram {
   slug: string;
 }
 
-// Input types for create/update operations
+// Extended types with relations
+export interface DepartmentWithPrograms extends Department {
+  university: UniversityForProgram;
+  programs: Array<{
+    program: Pick<Program, 'id' | 'programName' | 'degreeType' | 'isActive'>;
+  }>;
+  _count: {
+    programs: number;
+  };
+}
+
+export interface ProgramWithRelations extends Program {
+  departments: Array<{
+    department: Department;
+  }>;
+  university: UniversityForProgram;
+  syllabus?: Syllabus | null;
+  rankings: ProgramRanking[];
+  externalLinks: ExternalLink[];
+  _count: {
+    admissions: number;
+    scholarships: number;
+    tuitionBreakdowns: number;
+  };
+}
+
+export interface ProgramWithFullRelations extends Program {
+  departments: Array<{
+    department: Department;
+  }>;
+  university: UniversityForProgram;
+  syllabus?: Syllabus | null;
+  rankings: ProgramRanking[];
+  externalLinks: ExternalLink[];
+  admissions: any[];
+  tuitionBreakdowns: any[];
+  scholarships: any[];
+  feeStructures: any[];
+  financialAids: any[];
+  _count: {
+    admissions: number;
+    scholarships: number;
+    tuitionBreakdowns: number;
+    feeStructures: number;
+    financialAids: number;
+    externalLinks: number;
+  };
+}
+
+export interface ProgramSearchResult extends Program {
+  departments: Array<{
+    department: Department;
+  }>;
+  university: UniversityForProgram;
+  rankings: ProgramRanking[];
+  _count?: {
+    admissions: number;
+    scholarships: number;
+    tuitionBreakdowns: number;
+  };
+}
+
+// Input types
 export interface CreateDepartmentInput {
   universityId: string;
   name: string;
@@ -134,14 +146,14 @@ export interface CreateDepartmentInput {
 }
 
 export interface UpdateDepartmentInput {
-  id: string;
   name?: string;
   slug?: string;
+  universityId?: string;
 }
 
 export interface CreateProgramInput {
   universityId: string;
-  departmentIds: string[]; // Changed from departmentId to departmentIds array
+  departmentIds: string[];
   programName: string;
   programSlug: string;
   degreeType?: string;
@@ -159,9 +171,8 @@ export interface CreateProgramInput {
 }
 
 export interface UpdateProgramInput {
-  id: string;
   universityId?: string;
-  departmentIds?: string[]; // Changed from departmentId to departmentIds array
+  departmentIds?: string[];
   programName?: string;
   programSlug?: string;
   degreeType?: string;
@@ -191,6 +202,7 @@ export interface CreateProgramRankingInput {
 }
 
 export interface UpdateProgramRankingInput {
+  year?: number;
   rank?: number;
   source?: string;
 }
@@ -208,14 +220,30 @@ export interface UpdateExternalLinkInput {
 
 export interface SearchProgramsFilters {
   universityId?: string;
-  departmentIds?: string[]; // Changed from departmentId to departmentIds array
+  departmentIds?: string[];
   degreeType?: string;
   isActive?: boolean;
 }
 
-// Action result type for server actions
-export interface ActionResult<T> {
-  success: boolean;
-  data?: T;
-  error?: string;
+// Action result types
+export interface ActionResultSuccess<T> {
+  success: true;
+  data: T;
+}
+
+export interface ActionResultError {
+  success: false;
+  error: string;
+}
+
+export type ActionResult<T> = ActionResultSuccess<T> | ActionResultError;
+
+// Debug info interface
+export interface DebugInfo {
+  totalPrograms: number;
+  totalValidPrograms: number;
+  programDepartments: number;
+  samplePrograms: any[];
+  orphanedRelations: number;
+  orphanedUniversities: number;
 }

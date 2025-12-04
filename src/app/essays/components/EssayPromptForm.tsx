@@ -30,7 +30,7 @@ export interface Program {
   universityId: string;
   university?: {
     universityName: string;
-  };
+  } | null;
 }
 
 export interface Admission {
@@ -69,7 +69,7 @@ export interface EssayPromptFormProps {
 
 // Validation schema using Yup - Made admissionId optional
 const validationSchema = Yup.object({
-  admissionId: Yup.string().optional(), // Made optional
+  admissionId: Yup.string().optional(),
   programId: Yup.string().optional(),
   intakeId: Yup.string().optional(),
   promptTitle: Yup.string().required('Prompt title is required'),
@@ -82,8 +82,9 @@ const validationSchema = Yup.object({
     .test(
       'lessThanWordLimit',
       'Minimum word count cannot exceed word limit',
-      (value: number | undefined, context: { parent: { wordLimit: number; }; }) => {
-        return value === undefined || value <= context.parent.wordLimit;
+      function(value) {
+        const { wordLimit } = this.parent;
+        return value === undefined || value === null || value <= wordLimit;
       }
     )
     .optional(),
@@ -120,18 +121,29 @@ const EssayPromptForm: React.FC<EssayPromptFormProps> = ({
     },
     validationSchema,
     onSubmit: (values: EssayPromptInput) => {
-      onSubmit(values);
+      // Convert empty strings to undefined for optional fields
+      const submitValues = {
+        ...values,
+        admissionId: values.admissionId || undefined,
+        programId: values.programId || undefined,
+        intakeId: values.intakeId || undefined,
+      };
+      onSubmit(submitValues);
     },
   });
 
   // Filter programs based on selected university
   useEffect(() => {
     if (selectedUniversityId) {
-      const filtered = programs.filter(program => program.universityId === selectedUniversityId);
+      const filtered = programs.filter(program => 
+        program.universityId === selectedUniversityId && program.university !== null
+      );
       setFilteredPrograms(filtered);
       
       // Also filter admissions for the selected university
-      const filteredAdms = admissions.filter(admission => admission.universityId === selectedUniversityId);
+      const filteredAdms = admissions.filter(admission => 
+        admission.universityId === selectedUniversityId
+      );
       setFilteredAdmissions(filteredAdms);
       
       // Reset program selection if current program doesn't belong to selected university
@@ -150,18 +162,27 @@ const EssayPromptForm: React.FC<EssayPromptFormProps> = ({
         }
       }
     } else {
-      setFilteredPrograms(programs);
+      setFilteredPrograms(programs.filter(p => p.university !== null));
       setFilteredAdmissions(admissions);
     }
-  }, [selectedUniversityId, programs, admissions, formik.values.programId, formik.values.admissionId]);
+  }, [selectedUniversityId, programs, admissions]);
 
   // Filter intakes based on selected admission
   useEffect(() => {
     if (formik.values.admissionId) {
       const filtered = intakes.filter(intake => intake.admissionId === formik.values.admissionId);
       setFilteredIntakes(filtered);
+      
+      // Reset intake if it doesn't belong to selected admission
+      if (formik.values.intakeId) {
+        const intakeBelongsToAdmission = filtered.some(i => i.id === formik.values.intakeId);
+        if (!intakeBelongsToAdmission) {
+          formik.setFieldValue('intakeId', '');
+        }
+      }
     } else {
       setFilteredIntakes([]);
+      formik.setFieldValue('intakeId', '');
     }
   }, [formik.values.admissionId, intakes]);
 
@@ -195,6 +216,7 @@ const EssayPromptForm: React.FC<EssayPromptFormProps> = ({
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 transition-colors"
+            type="button"
           >
             <X size={24} />
           </button>
@@ -221,7 +243,7 @@ const EssayPromptForm: React.FC<EssayPromptFormProps> = ({
             </select>
           </div>
 
-          {/* Admission Selection - Made Optional */}
+          {/* Admission Selection - Optional */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Admission (Optional)
@@ -237,6 +259,7 @@ const EssayPromptForm: React.FC<EssayPromptFormProps> = ({
               {filteredAdmissions.map((admission) => (
                 <option key={admission.id} value={admission.id}>
                   {admission.university.universityName} - {admission.program.programName}
+                  {admission.program.degreeType ? ` (${admission.program.degreeType})` : ''}
                 </option>
               ))}
             </select>
@@ -263,7 +286,9 @@ const EssayPromptForm: React.FC<EssayPromptFormProps> = ({
               <option value="">Select a program (optional)</option>
               {filteredPrograms.map((program) => (
                 <option key={program.id} value={program.id}>
-                  {program.programName} {program.degreeType ? `(${program.degreeType})` : ''}
+                  {program.programName} 
+                  {program.degreeType ? ` (${program.degreeType})` : ''}
+                  {program.university ? ` - ${program.university.universityName}` : ''}
                 </option>
               ))}
             </select>
@@ -439,7 +464,7 @@ const EssayPromptForm: React.FC<EssayPromptFormProps> = ({
             </button>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !formik.isValid}
               className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center"
             >
               {loading ? (
