@@ -6,16 +6,14 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard,
   Users,
-  //FileText,
   GraduationCap,
- // DollarSign,
   Building2,
   FileTextIcon,
   LogOut,
   Loader2,
-  Menu,
 } from 'lucide-react';
 import { SidebarProvider } from '@/components/ui/sidebar';
+
 
 // ---------- Navigation config ----------
 const navigationItems = [
@@ -23,12 +21,10 @@ const navigationItems = [
   { id: 'universities', title: 'Universities', url: '/universities', icon: Building2 },
   { id: 'programs', title: 'Programs', url: '/programs', icon: GraduationCap },
   { id: 'students', title: 'Students', url: '/students', icon: Users },
- // { id: 'applications', title: 'Applications', url: '/applications', icon: FileText },
-  //{ id: 'financial', title: 'Financial', url: '/financial', icon: DollarSign },
   { id: 'essays', title: 'Essays', url: '/essays', icon: FileTextIcon },
 ];
 
-const API_URL = process.env.BACKEND_URI ;
+const API_URL = process.env.BACKEND_URI;
 
 // ---------- Helpers ----------
 const isTokenExpired = (token: string | null): boolean => {
@@ -59,10 +55,9 @@ function AdminSidebar({
   const router = useRouter();
 
   return (
-    <aside className="w-64 border-r bg-white flex-shrink-0 flex flex-col">
+    <aside className="w-64 border-r bg-white flex-shrink-0 flex flex-col h-screen sticky top-0">
       <div className="p-6 border-b">
         <h1 className="text-xl font-bold text-gray-900">AltuVia</h1>
-        
       </div>
 
       <div className="px-4 py-3 border-b">
@@ -109,7 +104,7 @@ function AdminSidebar({
   );
 }
 
-// ---------- Login component (simple) ----------
+// ---------- Login component ----------
 function LoginPage({ onSuccess }: { onSuccess: (token: string, email: string) => void }) {
   const [email, setEmail] = useState('admin@altuvia.com');
   const [password, setPassword] = useState('');
@@ -203,7 +198,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const [adminEmail, setAdminEmail] = useState('');
   const [loading, setLoading] = useState(true);
 
-  // auth check
   useEffect(() => {
     const checkAuth = () => {
       const token = localStorage.getItem('adminToken');
@@ -239,35 +233,57 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     router.push('/');
   };
 
+  // Loading state
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-gray-600" />
-      </div>
+      <html lang="en">
+        <body>
+          <div className="min-h-screen flex items-center justify-center bg-gray-50">
+            <Loader2 className="h-8 w-8 animate-spin text-gray-600" />
+          </div>
+        </body>
+      </html>
     );
   }
 
+  // Not authenticated - show login
   if (!isAuthenticated) {
-    // show login page (full-screen)
-    return <LoginPage onSuccess={handleLoginSuccess} />;
+    return (
+      <html lang="en">
+        <body>
+          <LoginPage onSuccess={handleLoginSuccess} />
+        </body>
+      </html>
+    );
   }
 
-  // Authenticated: render sidebar + header + page content
+  // Authenticated - show admin layout
   return (
-    <SidebarProvider>
-      <div className="flex min-h-screen bg-gray-50">
-        <AdminSidebar currentPath={pathname || '/'} onLogout={handleLogout} adminEmail={adminEmail} />
+    <html lang="en">
+      <body>
+        <SidebarProvider>
+          {/* KEY FIX: Added w-full to ensure full viewport width */}
+          <div className="flex min-h-screen w-full bg-gray-50">
+            <AdminSidebar 
+              currentPath={pathname || '/'} 
+              onLogout={handleLogout} 
+              adminEmail={adminEmail} 
+            />
 
-        <div className="flex-1 flex flex-col min-h-screen">
-         
-
-          {/* Main area: children will be the page component for the current route.
-              We intentionally avoid a centered max-w wrapper so pages use the full width */}
-          <main className="flex-1 p-6 w-full">
-            {children}
-          </main>
-        </div>
-      </div>
-    </SidebarProvider>
+            {/* KEY FIX: Added min-w-0 to prevent flex item from overflowing 
+                and w-full to ensure it takes remaining space */}
+            <div className="flex-1 flex flex-col min-w-0 w-full">
+              {/* KEY FIX: Main content area now has proper width constraints */}
+              <main className="flex-1 p-6 w-full min-h-screen">
+                {/* KEY FIX: Wrapper div ensures children always have full width */}
+                <div className="w-full h-full">
+                  {children}
+                </div>
+              </main>
+            </div>
+          </div>
+        </SidebarProvider>
+      </body>
+    </html>
   );
 }
