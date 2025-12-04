@@ -28,7 +28,7 @@ const navigationItems = [
   { id: 'essays', title: 'Essays', url: '/essays', icon: FileTextIcon },
 ];
 
-const API_URL = 'http://localhost:5000/api/user';
+const API_URL = process.env.BACKEND_URI ;
 
 // ---------- Helpers ----------
 const isTokenExpired = (token: string | null): boolean => {
@@ -61,8 +61,8 @@ function AdminSidebar({
   return (
     <aside className="w-64 border-r bg-white flex-shrink-0 flex flex-col">
       <div className="p-6 border-b">
-        <h1 className="text-xl font-bold text-gray-900">EduAdmin</h1>
-        <p className="text-sm text-gray-500">College Platform</p>
+        <h1 className="text-xl font-bold text-gray-900">AltuVia</h1>
+        
       </div>
 
       <div className="px-4 py-3 border-b">
@@ -259,22 +259,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AdminSidebar currentPath={pathname || '/'} onLogout={handleLogout} adminEmail={adminEmail} />
 
         <div className="flex-1 flex flex-col min-h-screen">
-          <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 sticky top-0 z-10">
-            <div className="flex items-center gap-4">
-              <Menu className="h-5 w-5 text-gray-500" />
-              <h1 className="text-lg font-semibold">EduAdmin</h1>
-            </div>
-
-            <div className="flex items-center space-x-4">
-              <div className="text-right">
-                <p className="text-sm font-medium text-gray-900">Admin User</p>
-                <p className="text-xs text-gray-500">{adminEmail}</p>
-              </div>
-              <div className="h-8 w-8 bg-blue-600 rounded-full flex items-center justify-center">
-                <span className="text-white text-sm font-medium">{getInitials(adminEmail)}</span>
-              </div>
-            </div>
-          </header>
+         
 
           {/* Main area: children will be the page component for the current route.
               We intentionally avoid a centered max-w wrapper so pages use the full width */}
