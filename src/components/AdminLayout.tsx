@@ -24,7 +24,8 @@ const navigationItems = [
   { id: 'essays', title: 'Essays', url: '/essays', icon: FileTextIcon },
 ];
 
-const API_URL = process.env.BACKEND_URI;
+const API_URL = process.env.NEXT_PUBLIC_BACKEND_URI ?? '';
+;
 
 // ---------- Helpers ----------
 const isTokenExpired = (token: string | null): boolean => {
