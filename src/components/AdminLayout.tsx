@@ -25,6 +25,8 @@ const navigationItems = [
 ];
 
 const API_URL = process.env.NEXT_PUBLIC_BACKEND_URI ?? '';
+console.log(API_URL);
+
 ;
 
 // ---------- Helpers ----------

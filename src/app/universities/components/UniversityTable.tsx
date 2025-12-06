@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 // components/university/UniversityTable.tsx
 "use client";
 
@@ -5,14 +6,6 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from "@/components/ui/table";
 import { 
   DropdownMenu, 
   DropdownMenuContent, 
@@ -29,7 +22,9 @@ import {
   Image as ImageIcon,
   MapPin,
   DollarSign,
-  Calendar
+  Calendar,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react";
 import { University } from "../types/university";
 
@@ -49,8 +44,19 @@ export function UniversityTable({
   onManageImages
 }: UniversityTableProps) {
   
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [sortField, setSortField] = useState<keyof University>('createdAt');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+
+  const toggleRowExpansion = (id: string) => {
+    const newExpanded = new Set(expandedRows);
+    if (newExpanded.has(id)) {
+      newExpanded.delete(id);
+    } else {
+      newExpanded.add(id);
+    }
+    setExpandedRows(newExpanded);
+  };
 
   const handleSort = (field: keyof University) => {
     if (sortField === field) {
@@ -126,207 +132,195 @@ export function UniversityTable({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>
-          Universities ({universities.length})
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-12">Image</TableHead>
-                <TableHead 
-                  className="cursor-pointer hover:bg-gray-50"
-                  onClick={() => handleSort('universityName')}
-                >
-                  University Name
-                </TableHead>
-                <TableHead 
-                  className="cursor-pointer hover:bg-gray-50"
-                  onClick={() => handleSort('city')}
-                >
-                  Location
-                </TableHead>
-                <TableHead className="text-center">Rankings</TableHead>
-                <TableHead className="text-center">Fees</TableHead>
-                <TableHead className="text-center">Status</TableHead>
-                <TableHead className="text-center">Images</TableHead>
-                <TableHead 
-                  className="cursor-pointer hover:bg-gray-50"
-                  onClick={() => handleSort('createdAt')}
-                >
-                  Created
-                </TableHead>
-                <TableHead className="text-center">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sortedUniversities.map((university) => {
-                const primaryImage = getPrimaryImage(university);
-                const imageCount = getImageCount(university);
-                
-                return (
-                  <TableRow key={university.id} className="hover:bg-gray-50">
-                    {/* Primary Image */}
-                    <TableCell>
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>Universities ({universities.length})</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="divide-y">
+            {sortedUniversities.map((university) => {
+              const primaryImage = getPrimaryImage(university);
+              const imageCount = getImageCount(university);
+              const isExpanded = expandedRows.has(university.id);
+              
+              return (
+                <div key={university.id} className="p-4 hover:bg-gray-50">
+                  {/* Main Row */}
+                  <div className="flex items-start gap-4">
+                    {/* Image */}
+                    <div className="flex-shrink-0">
                       {primaryImage ? (
                         <img
                           src={primaryImage.imageUrl}
                           alt={primaryImage.imageAltText}
-                          className="w-12 h-12 object-cover rounded"
+                          className="w-16 h-16 object-cover rounded-lg"
                           loading="lazy"
                         />
                       ) : (
-                        <div className="w-12 h-12 bg-gray-200 rounded flex items-center justify-center">
-                          <ImageIcon className="h-4 w-4 text-gray-400" />
+                        <div className="w-16 h-16 bg-gray-200 rounded-lg flex items-center justify-center">
+                          <ImageIcon className="h-6 w-6 text-gray-400" />
                         </div>
                       )}
-                    </TableCell>
+                    </div>
 
-                    {/* University Name */}
-                    <TableCell>
-                      <div className="space-y-1">
-                        <div className="font-medium">{university.universityName}</div>
-                        <div className="text-sm text-gray-500 truncate max-w-xs">
-                          {university.shortDescription || 'No description'}
-                        </div>
-                        {university.websiteUrl && (
-                          <a
-                            href={university.websiteUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center text-xs text-blue-600 hover:text-blue-800"
-                          >
-                            <ExternalLink className="h-3 w-3 mr-1" />
-                            Website
-                          </a>
-                        )}
-                      </div>
-                    </TableCell>
-
-                    {/* Location */}
-                    <TableCell>
-                      <div className="flex items-center text-sm">
-                        <MapPin className="h-3 w-3 mr-1 text-gray-400" />
-                        <div>
-                          {university.city}
-                          {university.state && `, ${university.state}`}
-                          {university.country && `, ${university.country}`}
-                        </div>
-                      </div>
-                    </TableCell>
-
-                    {/* Rankings */}
-                    <TableCell className="text-center">
-                      <div className="space-y-1">
-                        {university.ftGlobalRanking && (
-                          <Badge variant="outline" className="text-xs">
-                            FT: #{university.ftGlobalRanking}
-                          </Badge>
-                        )}
-                        {university.qsRanking && (
-                          <Badge variant="outline" className="text-xs">
-                            QS: #{university.qsRanking}
-                          </Badge>
-                        )}
-                        {university.usNewsRanking && (
-                          <Badge variant="outline" className="text-xs">
-                            US: #{university.usNewsRanking}
-                          </Badge>
-                        )}
-                        {!university.ftGlobalRanking && !university.qsRanking && !university.usNewsRanking && (
-                          <span className="text-gray-400 text-xs">No rankings</span>
-                        )}
-                      </div>
-                    </TableCell>
-
-                    {/* Fees */}
-                    <TableCell className="text-center">
-                      <div className="flex items-center justify-center text-sm">
-                        <DollarSign className="h-4 w-4 mr-1 text-gray-500" />
-                        <span>
-                          {formatCurrency(Number(university.tuitionFees), university.currency)}
-                        </span>
-                      </div>
-                    </TableCell>
-
-                    {/* Status */}
-                    <TableCell className="text-center">
-                      <div className="flex justify-center space-x-2">
-                        <Badge variant={university.isActive ? 'default' : 'secondary'}>
-                          {university.isActive ? 'Active' : 'Inactive'}
-                        </Badge>
-                        {university.isFeatured && (
-                          <Badge variant="outline">
-                            <Star className="h-3 w-3 mr-1 fill-current text-yellow-500" />
-                            Featured
-                          </Badge>
-                        )}
-                      </div>
-                    </TableCell>
-
-                    {/* Images */}
-                    <TableCell className="text-center">
-                      <Badge variant="secondary">
-                        {imageCount} image{imageCount !== 1 ? 's' : ''}
-                      </Badge>
-                    </TableCell>
-
-                    {/* Created */}
-                    <TableCell className="text-sm">
-                      <div className="flex items-center">
-                        <Calendar className="h-3 w-3 mr-1 text-gray-500" />
-                        {formatDate(university.createdAt)}
-                      </div>
-                    </TableCell>
-
-                    {/* Actions */}
-                    <TableCell className="text-center">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => onEdit(university)}>
-                            <Edit className="h-4 w-4 mr-2" />
-                            Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => onToggleFeatured(university.id)}>
-                            {university.isFeatured ? (
-                              <StarOff className="h-4 w-4 mr-2 text-yellow-500" />
-                            ) : (
-                              <Star className="h-4 w-4 mr-2" />
+                    {/* Main Content */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          {/* Title and Status */}
+                          <div className="flex items-center gap-2 mb-1">
+                            <h3 className="font-semibold text-lg">{university.universityName}</h3>
+                            {university.isFeatured && (
+                              <Star className="h-4 w-4 fill-yellow-500 text-yellow-500" />
                             )}
-                            {university.isFeatured ? 'Unfeature' : 'Feature'}
-                          </DropdownMenuItem>
-                          {onManageImages && (
-                            <DropdownMenuItem onClick={() => onManageImages(university)}>
-                              <ImageIcon className="h-4 w-4 mr-2" />
-                              Manage Images
-                            </DropdownMenuItem>
-                          )}
-                          <DropdownMenuItem 
-                            className="text-red-600"
-                            onClick={() => onDelete(university.id)}
+                          </div>
+
+                          {/* Location */}
+                          <div className="flex items-center text-sm text-gray-600 mb-2">
+                            <MapPin className="h-3 w-3 mr-1" />
+                            {university.city}
+                            {university.state && `, ${university.state}`}
+                            {university.country && `, ${university.country}`}
+                          </div>
+
+                          {/* Description */}
+                          <p className="text-sm text-gray-500 line-clamp-2 mb-2">
+                            {university.shortDescription || 'No description'}
+                          </p>
+
+                          {/* Quick Info - Always Visible */}
+                          <div className="flex flex-wrap items-center gap-3 text-sm">
+                            {/* Status Badge */}
+                            <Badge variant={university.isActive ? 'default' : 'secondary'}>
+                              {university.isActive ? 'Active' : 'Inactive'}
+                            </Badge>
+
+                            {/* Tuition */}
+                            <div className="flex items-center text-gray-600">
+                              <DollarSign className="h-3 w-3 mr-1" />
+                              {formatCurrency(Number(university.tuitionFees), university.currency)}
+                            </div>
+
+                            {/* Image Count */}
+                            <div className="flex items-center text-gray-600">
+                              <ImageIcon className="h-3 w-3 mr-1" />
+                              {imageCount} image{imageCount !== 1 ? 's' : ''}
+                            </div>
+
+                            {/* Website Link */}
+                            {university.websiteUrl && (
+                              <a
+                                href={university.websiteUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center text-blue-600 hover:text-blue-800"
+                              >
+                                <ExternalLink className="h-3 w-3 mr-1" />
+                                Website
+                              </a>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => toggleRowExpansion(university.id)}
                           >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
-      </CardContent>
-    </Card>
+                            {isExpanded ? (
+                              <ChevronUp className="h-4 w-4" />
+                            ) : (
+                              <ChevronDown className="h-4 w-4" />
+                            )}
+                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => onEdit(university)}>
+                                <Edit className="h-4 w-4 mr-2" />
+                                Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => onToggleFeatured(university.id)}>
+                                {university.isFeatured ? (
+                                  <StarOff className="h-4 w-4 mr-2 text-yellow-500" />
+                                ) : (
+                                  <Star className="h-4 w-4 mr-2" />
+                                )}
+                                {university.isFeatured ? 'Unfeature' : 'Feature'}
+                              </DropdownMenuItem>
+                              {onManageImages && (
+                                <DropdownMenuItem onClick={() => onManageImages(university)}>
+                                  <ImageIcon className="h-4 w-4 mr-2" />
+                                  Manage Images
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuItem 
+                                className="text-red-600"
+                                onClick={() => onDelete(university.id)}
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Expanded Details */}
+                  {isExpanded && (
+                    <div className="mt-4 pl-20 grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
+                      {/* Rankings */}
+                      <div>
+                        <h4 className="text-sm font-semibold mb-2">Rankings</h4>
+                        <div className="space-y-1">
+                          {university.ftGlobalRanking && (
+                            <div className="text-sm text-gray-600">
+                              <span className="font-medium">FT Global:</span> #{university.ftGlobalRanking}
+                            </div>
+                          )}
+                          {university.qsRanking && (
+                            <div className="text-sm text-gray-600">
+                              <span className="font-medium">QS World:</span> #{university.qsRanking}
+                            </div>
+                          )}
+                          {university.usNewsRanking && (
+                            <div className="text-sm text-gray-600">
+                              <span className="font-medium">US News:</span> #{university.usNewsRanking}
+                            </div>
+                          )}
+                          {!university.ftGlobalRanking && !university.qsRanking && !university.usNewsRanking && (
+                            <div className="text-sm text-gray-400">No rankings available</div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Additional Info */}
+                      <div>
+                        <h4 className="text-sm font-semibold mb-2">Additional Information</h4>
+                        <div className="space-y-1">
+                          <div className="flex items-center text-sm text-gray-600">
+                            <Calendar className="h-3 w-3 mr-2" />
+                            <span className="font-medium mr-1">Created:</span> {formatDate(university.createdAt)}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 }

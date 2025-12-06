@@ -403,41 +403,7 @@ const ProgramManagement: React.FC = () => {
       </div>
 
       {/* Debug Panel */}
-      {showDebug && debugInfo && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-            <div className="flex items-start">
-              <AlertCircle className="h-5 w-5 text-yellow-600 mt-0.5" />
-              <div className="ml-3">
-                <h3 className="text-sm font-medium text-yellow-800">Debug Information</h3>
-                <div className="mt-2 text-sm text-yellow-700">
-                  <p><strong>Total Programs in DB:</strong> {debugInfo.totalPrograms}</p>
-                  <p><strong>Program-Department Relations:</strong> {debugInfo.programDepartments}</p>
-                  <p><strong>Programs fetched via searchPrograms:</strong> {programs.length}</p>
-                  {debugInfo.totalPrograms > 0 && debugInfo.programDepartments === 0 && (
-                    <p className="mt-2 text-red-600 font-medium">
-                      ⚠️ Programs exist but have no department associations! 
-                      You need to assign departments to programs.
-                    </p>
-                  )}
-                  {debugInfo.samplePrograms.length > 0 && (
-                    <div className="mt-2">
-                      <p><strong>Sample Programs:</strong></p>
-                      <ul className="list-disc list-inside ml-2">
-                        {debugInfo.samplePrograms.slice(0, 3).map((p: any) => (
-                          <li key={p.id}>
-                            {p.programName} (Depts: {p.departments?.length || 0}, Active: {p.isActive ? 'Yes' : 'No'})
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+   
 
       {/* Stats Cards */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -457,11 +423,7 @@ const ProgramManagement: React.FC = () => {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Total Programs</p>
                 <p className="text-2xl font-bold text-gray-900">{stats.totalPrograms}</p>
-                {debugInfo && debugInfo.totalPrograms !== stats.totalPrograms && (
-                  <p className="text-xs text-orange-500">
-                    (DB has {debugInfo.totalPrograms})
-                  </p>
-                )}
+                
               </div>
             </div>
           </div>
@@ -474,15 +436,7 @@ const ProgramManagement: React.FC = () => {
               </div>
             </div>
           </div>
-          <div className="bg-white p-6 rounded-lg shadow-sm">
-            <div className="flex items-center">
-              <Users className="h-8 w-8 text-orange-600" />
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-500">Total Students</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.totalStudents}</p>
-              </div>
-            </div>
-          </div>
+       
         </div>
 
         {/* Tab Navigation */}
