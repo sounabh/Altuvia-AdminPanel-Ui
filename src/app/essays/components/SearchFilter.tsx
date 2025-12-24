@@ -1,6 +1,13 @@
-// SearchFilters.tsx - FIXED VERSION
-import React from 'react';
+// SearchFilters.tsx - FIXED VERSION with University Filter
+import React, { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
+
+interface University {
+  id: string;
+  universityName: string;
+  city: string;
+  country: string;
+}
 
 interface Admission {
   id: string;
@@ -16,6 +23,7 @@ interface Program {
   id: string;
   programName: string;
   degreeType: string | null;
+  universityId: string;
   university?: {
     universityName: string;
   } | null;
@@ -30,6 +38,7 @@ interface Intake {
 
 interface SearchFiltersProps {
   filters: {
+    universityId: string;
     admissionId: string;
     programId: string;
     intakeId: string;
@@ -39,6 +48,7 @@ interface SearchFiltersProps {
     isActive: boolean | undefined;
   };
   setFilters: React.Dispatch<React.SetStateAction<{
+    universityId: string;
     admissionId: string;
     programId: string;
     intakeId: string;
@@ -48,6 +58,7 @@ interface SearchFiltersProps {
     isActive: boolean | undefined;
   }>>;
   activeTab: 'prompts' | 'submissions' | 'analytics';
+  universities?: University[];
   admissions?: Admission[];
   programs?: Program[];
   intakes?: Intake[];
@@ -57,10 +68,27 @@ const SearchFilters: React.FC<SearchFiltersProps> = ({
   filters, 
   setFilters, 
   activeTab,
+  universities = [],
   admissions = [],
   programs = [],
   intakes = []
 }) => {
+  // ✅ Filter programs based on selected university
+  const [filteredPrograms, setFilteredPrograms] = useState<Program[]>(programs);
+
+  // ✅ Update filtered programs when university or programs change
+  useEffect(() => {
+    if (filters.universityId) {
+      const filtered = programs.filter(p => p.universityId === filters.universityId);
+      console.log('SearchFilters - Selected University:', filters.universityId);
+      console.log('SearchFilters - All Programs:', programs);
+      console.log('SearchFilters - Filtered Programs:', filtered);
+      setFilteredPrograms(filtered);
+    } else {
+      setFilteredPrograms(programs);
+    }
+  }, [filters.universityId, programs]);
+
   const statusOptions = [
     { value: 'DRAFT', label: 'Draft' },
     { value: 'SUBMITTED', label: 'Submitted' },
@@ -91,8 +119,28 @@ const SearchFilters: React.FC<SearchFiltersProps> = ({
     }
   };
 
+  // ✅ Handle university change and reset program if needed
+  const handleUniversityChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const universityId = e.target.value;
+    
+    setFilters((prev) => {
+      const updated = { ...prev, universityId };
+      
+      // Reset program if it doesn't belong to new university
+      if (universityId && prev.programId) {
+        const currentProgram = programs.find(p => p.id === prev.programId);
+        if (currentProgram && currentProgram.universityId !== universityId) {
+          updated.programId = '';
+        }
+      }
+      
+      return updated;
+    });
+  };
+
   const handleClearFilters = () => {
     setFilters({
+      universityId: '',
       admissionId: '',
       programId: '',
       intakeId: '',
@@ -111,6 +159,43 @@ const SearchFilters: React.FC<SearchFiltersProps> = ({
       <div className="flex flex-wrap gap-3 items-center">
         {activeTab === 'prompts' && (
           <>
+            {/* ✅ ADDED: University Filter */}
+            <select
+              name="universityId"
+              value={filters.universityId}
+              onChange={handleUniversityChange}
+              className={selectClassName}
+            >
+              <option value="">All Universities</option>
+              {universities.map(uni => (
+                <option key={uni.id} value={uni.id}>
+                  {uni.universityName}
+                </option>
+              ))}
+            </select>
+
+            {/* ✅ FIXED: Program Filter - now uses filteredPrograms */}
+            <select
+              name="programId"
+              value={filters.programId}
+              onChange={handleChange}
+              className={selectClassName}
+              disabled={filteredPrograms.length === 0 && filters.universityId !== ''}
+            >
+              <option value="">
+                {filters.universityId 
+                  ? (filteredPrograms.length === 0 ? 'No programs available' : 'All Programs')
+                  : 'All Programs'
+                }
+              </option>
+              {filteredPrograms.map(program => (
+                <option key={program.id} value={program.id}>
+                  {program.programName}
+                  {program.degreeType ? ` (${program.degreeType})` : ''}
+                </option>
+              ))}
+            </select>
+            
             <select
               name="admissionId"
               value={filters.admissionId}
@@ -121,21 +206,6 @@ const SearchFilters: React.FC<SearchFiltersProps> = ({
               {admissions.map(admission => (
                 <option key={admission.id} value={admission.id}>
                   {admission.university.universityName} - {admission.program.programName}
-                </option>
-              ))}
-            </select>
-            
-            <select
-              name="programId"
-              value={filters.programId}
-              onChange={handleChange}
-              className={selectClassName}
-            >
-              <option value="">All Programs</option>
-              {programs.map(program => (
-                <option key={program.id} value={program.id}>
-                  {program.programName}
-                  {program.degreeType ? ` (${program.degreeType})` : ''}
                 </option>
               ))}
             </select>

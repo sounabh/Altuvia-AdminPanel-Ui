@@ -716,31 +716,56 @@ export const getUniversities = async (): Promise<University[]> => {
   }
 };
 
-// Fetch programs
+// Fetch programs - FIXED to match working program page pattern
 export const getPrograms = async (): Promise<Program[]> => {
   try {
+    // Step 1: Get all valid universities first
+    const validUniversities = await prisma.university.findMany({
+      select: { id: true, universityName: true }
+    });
+    
+    const universityMap = new Map(validUniversities.map(u => [u.id, u.universityName]));
+    const validUniversityIds = Array.from(universityMap.keys());
+
+    console.log('✅ Valid universities:', validUniversityIds.length);
+
+    // Step 2: Get programs that belong to valid universities
     const programs = await prisma.program.findMany({
+      where: {
+        universityId: { in: validUniversityIds }
+      },
       select: {
         id: true,
         programName: true,
         degreeType: true,
-        universityId: true,
-        university: {
-          select: {
-            universityName: true
-          }
-        }
+        universityId: true
       },
       orderBy: { programName: 'asc' }
     });
 
-    // Filter out programs with null universities (orphaned data)
-    return programs.filter(program => program.university !== null) as Program[];
+    console.log('✅ FETCHED PROGRAMS:', programs.length);
+
+    // Step 3: Map university names to programs
+    const programsWithUniversity = programs.map(p => ({
+      ...p,
+      university: {
+        universityName: universityMap.get(p.universityId) || 'Unknown'
+      }
+    }));
+
+    console.log('📋 First 3 programs:');
+    programsWithUniversity.slice(0, 3).forEach(p => {
+      console.log(`  - ${p.programName} | universityId: ${p.universityId} | university: ${p.university.universityName}`);
+    });
+
+    return programsWithUniversity as Program[];
   } catch (error) {
-    console.error('Error fetching programs:', error);
+    console.error('❌ Error fetching programs:', error);
     return [];
   }
 };
+  
+
 
 // Fetch admissions with relations
 export const getAdmissions = async (): Promise<AdmissionWithRelations[]> => {

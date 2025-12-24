@@ -255,10 +255,11 @@ const ProgramForm: React.FC<ProgramFormProps> = ({
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               required
               disabled={loading}
+              style={{ color: '#111827' }}
             >
-              <option value="">Select University</option>
+              <option value="" style={{ color: '#111827', backgroundColor: '#fff' }}>Select University</option>
               {universities.map((university) => (
-                <option key={university.id} value={university.id}>
+                <option key={university.id} value={university.id} style={{ color: '#111827', backgroundColor: '#fff' }}>
                   {university.name}
                 </option>
               ))}
@@ -379,13 +380,15 @@ const ProgramForm: React.FC<ProgramFormProps> = ({
                 defaultValue={program?.degreeType || ''}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 disabled={loading}
+                style={{ color: '#111827' }}
               >
-                <option value="">Select Degree Type</option>
-                <option value="Bachelor">Bachelors</option>
-                <option value="Master">Masters</option>
-                <option value="Doctorate">Doctorate</option>
-                <option value="Diploma">Diploma</option>
-                <option value="Certificate">Certificate</option>
+                <option value="" style={{ color: '#111827', backgroundColor: '#fff' }}>Select Degree Type</option>
+                <option value="Bachelor" style={{ color: '#111827', backgroundColor: '#fff' }}>Bachelors</option>
+                <option value="Master" style={{ color: '#111827', backgroundColor: '#fff' }}>Masters</option>
+                <option value="MBA" style={{ color: '#111827', backgroundColor: '#fff' }}>MBA</option>
+                <option value="Doctorate" style={{ color: '#111827', backgroundColor: '#fff' }}>Doctorate</option>
+                <option value="Diploma" style={{ color: '#111827', backgroundColor: '#fff' }}>Diploma</option>
+                <option value="Certificate" style={{ color: '#111827', backgroundColor: '#fff' }}>Certificate</option>
               </select>
             </div>
             

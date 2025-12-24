@@ -132,21 +132,27 @@ const EssayPromptForm: React.FC<EssayPromptFormProps> = ({
     },
   });
 
-  // Filter programs based on selected university
+  // ✅ FIXED: Filter programs based on selected university
   useEffect(() => {
+    console.log('EssayPromptForm - Selected University:', selectedUniversityId);
+    console.log('EssayPromptForm - All Programs:', programs);
+    console.log('EssayPromptForm - All Admissions:', admissions);
+    
     if (selectedUniversityId) {
       const filtered = programs.filter(program => 
-        program.universityId === selectedUniversityId && program.university !== null
+        program.universityId === selectedUniversityId
       );
+      console.log('EssayPromptForm - Filtered Programs:', filtered);
       setFilteredPrograms(filtered);
       
       // Also filter admissions for the selected university
       const filteredAdms = admissions.filter(admission => 
         admission.universityId === selectedUniversityId
       );
+      console.log('EssayPromptForm - Filtered Admissions:', filteredAdms);
       setFilteredAdmissions(filteredAdms);
       
-      // Reset program selection if current program doesn't belong to selected university
+      // ✅ FIXED: Only reset if program doesn't belong to university
       if (formik.values.programId) {
         const programBelongsToUni = filtered.some(p => p.id === formik.values.programId);
         if (!programBelongsToUni) {
@@ -162,10 +168,12 @@ const EssayPromptForm: React.FC<EssayPromptFormProps> = ({
         }
       }
     } else {
-      setFilteredPrograms(programs.filter(p => p.university !== null));
+      // ✅ FIXED: Show all programs when no university selected
+      console.log('EssayPromptForm - No university selected, showing all programs');
+      setFilteredPrograms(programs);
       setFilteredAdmissions(admissions);
     }
-  }, [selectedUniversityId, programs, admissions]);
+  }, [selectedUniversityId, programs, admissions]); // ✅ Removed formik.values dependencies
 
   // Filter intakes based on selected admission
   useEffect(() => {
@@ -186,7 +194,7 @@ const EssayPromptForm: React.FC<EssayPromptFormProps> = ({
     }
   }, [formik.values.admissionId, intakes]);
 
-  // Initialize selected university based on existing admission/program
+  // ✅ FIXED: Initialize selected university based on existing admission/program
   useEffect(() => {
     if (prompt?.admissionId) {
       const admission = admissions.find(a => a.id === prompt.admissionId);
@@ -199,7 +207,7 @@ const EssayPromptForm: React.FC<EssayPromptFormProps> = ({
         setSelectedUniversityId(program.universityId);
       }
     }
-  }, [prompt, admissions, programs]);
+  }, []); // ✅ Only run once on mount
 
   const inputClasses = "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent";
   const selectClasses = "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white";
@@ -241,6 +249,9 @@ const EssayPromptForm: React.FC<EssayPromptFormProps> = ({
                 </option>
               ))}
             </select>
+            <p className="mt-1 text-sm text-gray-500">
+              Select a university to filter programs and admissions
+            </p>
           </div>
 
           {/* Admission Selection - Optional */}
@@ -282,8 +293,14 @@ const EssayPromptForm: React.FC<EssayPromptFormProps> = ({
               onChange={formik.handleChange}
               onBlur={formik.handleBlur}
               className={`${selectClasses} ${formik.touched.programId && formik.errors.programId ? errorClasses : ''}`}
+              disabled={selectedUniversityId && filteredPrograms.length === 0}
             >
-              <option value="">Select a program (optional)</option>
+              <option value="">
+                {selectedUniversityId 
+                  ? (filteredPrograms.length === 0 ? 'No programs for this university' : 'Select a program (optional)')
+                  : 'Select a program (optional)'
+                }
+              </option>
               {filteredPrograms.map((program) => (
                 <option key={program.id} value={program.id}>
                   {program.programName} 
@@ -297,6 +314,11 @@ const EssayPromptForm: React.FC<EssayPromptFormProps> = ({
                 <AlertCircle size={16} className="mr-1" />
                 {formik.errors.programId}
               </div>
+            )}
+            {selectedUniversityId && filteredPrograms.length === 0 && (
+              <p className="mt-1 text-sm text-amber-600">
+                No programs available for the selected university
+              </p>
             )}
           </div>
 

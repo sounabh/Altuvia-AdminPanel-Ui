@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // SearchFilters.tsx - FIXED VERSION WITH UNIVERSITY FILTER
 import React, { useMemo } from 'react';
 import { X } from 'lucide-react';
@@ -40,7 +41,7 @@ interface Intake {
 
 interface SearchFiltersProps {
   filters: {
-    universityId: string;      // ✅ Added universityId
+    universityId: string;
     admissionId: string;
     programId: string;
     intakeId: string;
@@ -50,7 +51,7 @@ interface SearchFiltersProps {
     isActive: boolean | undefined;
   };
   setFilters: React.Dispatch<React.SetStateAction<{
-    universityId: string;      // ✅ Added universityId
+    universityId: string;
     admissionId: string;
     programId: string;
     intakeId: string;
@@ -60,7 +61,7 @@ interface SearchFiltersProps {
     isActive: boolean | undefined;
   }>>;
   activeTab: 'prompts' | 'submissions' | 'analytics';
-  universities?: University[];  // ✅ Added universities prop
+  universities?: University[];
   admissions?: Admission[];
   programs?: Program[];
   intakes?: Intake[];
@@ -88,7 +89,7 @@ const SearchFilters: React.FC<SearchFiltersProps> = ({
     { value: 'REVIEWED', label: 'Reviewed' },
   ];
 
-  // ✅ Filter programs based on selected university
+  // Filter programs based on selected university
   const filteredPrograms = useMemo(() => {
     if (!filters.universityId) {
       return programs;
@@ -96,7 +97,7 @@ const SearchFilters: React.FC<SearchFiltersProps> = ({
     return programs.filter(program => program.universityId === filters.universityId);
   }, [programs, filters.universityId]);
 
-  // ✅ Filter admissions based on selected university
+  // Filter admissions based on selected university
   const filteredAdmissions = useMemo(() => {
     if (!filters.universityId) {
       return admissions;
@@ -104,7 +105,7 @@ const SearchFilters: React.FC<SearchFiltersProps> = ({
     return admissions.filter(admission => admission.universityId === filters.universityId);
   }, [admissions, filters.universityId]);
 
-  // ✅ Filter intakes based on selected admission
+  // Filter intakes based on selected admission
   const filteredIntakes = useMemo(() => {
     if (!filters.admissionId) {
       return intakes;
@@ -125,15 +126,15 @@ const SearchFilters: React.FC<SearchFiltersProps> = ({
       setFilters((prev) => {
         const newFilters = { ...prev };
         
-        // ✅ Reset dependent filters when parent filter changes
+        // Reset dependent filters when parent filter changes
         if (name === 'universityId') {
           newFilters.universityId = value;
-          newFilters.programId = '';      // Reset program when university changes
-          newFilters.admissionId = '';    // Reset admission when university changes
-          newFilters.intakeId = '';       // Reset intake when university changes
+          newFilters.programId = '';
+          newFilters.admissionId = '';
+          newFilters.intakeId = '';
         } else if (name === 'admissionId') {
           newFilters.admissionId = value;
-          newFilters.intakeId = '';       // Reset intake when admission changes
+          newFilters.intakeId = '';
         } else if (name === 'isMandatory' || name === 'isActive') {
           (newFilters as any)[name] = value === '' ? undefined : value === 'true';
         } else {
@@ -165,16 +166,17 @@ const SearchFilters: React.FC<SearchFiltersProps> = ({
     <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
       <div className="flex flex-wrap gap-3 items-center">
         
-        {/* ✅ University Filter - Common for both tabs */}
+        {/* University Filter - Common for both tabs */}
         <select
           name="universityId"
           value={filters.universityId}
           onChange={handleChange}
           className={selectClassName}
+          style={{ color: '#111827' }}
         >
-          <option value="">All Universities</option>
+          <option value="" style={{ color: '#111827', backgroundColor: '#fff' }}>All Universities</option>
           {universities.map(university => (
-            <option key={university.id} value={university.id}>
+            <option key={university.id} value={university.id} style={{ color: '#111827', backgroundColor: '#fff' }}>
               {university.universityName}
             </option>
           ))}
@@ -188,14 +190,15 @@ const SearchFilters: React.FC<SearchFiltersProps> = ({
               onChange={handleChange}
               className={selectClassName}
               disabled={filteredAdmissions.length === 0}
+              style={{ color: '#111827' }}
             >
-              <option value="">
+              <option value="" style={{ color: '#111827', backgroundColor: '#fff' }}>
                 {filters.universityId && filteredAdmissions.length === 0 
                   ? 'No admissions for this university' 
                   : 'All Admissions'}
               </option>
               {filteredAdmissions.map(admission => (
-                <option key={admission.id} value={admission.id}>
+                <option key={admission.id} value={admission.id} style={{ color: '#111827', backgroundColor: '#fff' }}>
                   {admission.university.universityName} - {admission.program.programName}
                 </option>
               ))}
@@ -207,14 +210,15 @@ const SearchFilters: React.FC<SearchFiltersProps> = ({
               onChange={handleChange}
               className={selectClassName}
               disabled={filteredPrograms.length === 0}
+              style={{ color: '#111827' }}
             >
-              <option value="">
+              <option value="" style={{ color: '#111827', backgroundColor: '#fff' }}>
                 {filters.universityId && filteredPrograms.length === 0 
                   ? 'No programs for this university' 
                   : 'All Programs'}
               </option>
               {filteredPrograms.map(program => (
-                <option key={program.id} value={program.id}>
+                <option key={program.id} value={program.id} style={{ color: '#111827', backgroundColor: '#fff' }}>
                   {program.programName}
                   {program.degreeType ? ` (${program.degreeType})` : ''}
                 </option>
@@ -227,14 +231,15 @@ const SearchFilters: React.FC<SearchFiltersProps> = ({
               onChange={handleChange}
               className={selectClassName}
               disabled={filteredIntakes.length === 0}
+              style={{ color: '#111827' }}
             >
-              <option value="">
+              <option value="" style={{ color: '#111827', backgroundColor: '#fff' }}>
                 {filters.admissionId && filteredIntakes.length === 0 
                   ? 'No intakes for this admission' 
                   : 'All Intakes'}
               </option>
               {filteredIntakes.map(intake => (
-                <option key={intake.id} value={intake.id}>
+                <option key={intake.id} value={intake.id} style={{ color: '#111827', backgroundColor: '#fff' }}>
                   {intake.intakeName} - {intake.intakeType} {intake.intakeYear}
                 </option>
               ))}
@@ -278,14 +283,15 @@ const SearchFilters: React.FC<SearchFiltersProps> = ({
               onChange={handleChange}
               className={selectClassName}
               disabled={filteredPrograms.length === 0}
+              style={{ color: '#111827' }}
             >
-              <option value="">
+              <option value="" style={{ color: '#111827', backgroundColor: '#fff' }}>
                 {filters.universityId && filteredPrograms.length === 0 
                   ? 'No programs for this university' 
                   : 'All Programs'}
               </option>
               {filteredPrograms.map(program => (
-                <option key={program.id} value={program.id}>
+                <option key={program.id} value={program.id} style={{ color: '#111827', backgroundColor: '#fff' }}>
                   {program.programName}
                   {program.degreeType ? ` (${program.degreeType})` : ''}
                 </option>
@@ -297,10 +303,11 @@ const SearchFilters: React.FC<SearchFiltersProps> = ({
               value={filters.status}
               onChange={handleChange}
               className={selectClassName}
+              style={{ color: '#111827' }}
             >
-              <option value="">All Statuses</option>
+              <option value="" style={{ color: '#111827', backgroundColor: '#fff' }}>All Statuses</option>
               {statusOptions.map(option => (
-                <option key={option.value} value={option.value}>
+                <option key={option.value} value={option.value} style={{ color: '#111827', backgroundColor: '#fff' }}>
                   {option.label}
                 </option>
               ))}
@@ -311,10 +318,11 @@ const SearchFilters: React.FC<SearchFiltersProps> = ({
               value={filters.reviewStatus}
               onChange={handleChange}
               className={selectClassName}
+              style={{ color: '#111827' }}
             >
-              <option value="">All Review Statuses</option>
+              <option value="" style={{ color: '#111827', backgroundColor: '#fff' }}>All Review Statuses</option>
               {reviewStatusOptions.map(option => (
-                <option key={option.value} value={option.value}>
+                <option key={option.value} value={option.value} style={{ color: '#111827', backgroundColor: '#fff' }}>
                   {option.label}
                 </option>
               ))}
@@ -331,7 +339,7 @@ const SearchFilters: React.FC<SearchFiltersProps> = ({
         </button>
       </div>
       
-      {/* ✅ Show active filters count */}
+      {/* Show active filters count */}
       {(filters.universityId || filters.programId || filters.admissionId || filters.status || filters.reviewStatus) && (
         <div className="mt-3 text-xs text-gray-500">
           Active filters: {[
