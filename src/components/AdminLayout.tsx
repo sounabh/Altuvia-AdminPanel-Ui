@@ -24,7 +24,7 @@ const navigationItems = [
   { id: 'essays', title: 'Essays', url: '/essays', icon: FileTextIcon },
 ];
 
-const API_URL = process.env.NEXT_PUBLIC_BACKEND_URI ?? '';
+const API_URL = process.env.BACKEND_URI ?? '';
 console.log(API_URL);
 
 ;
