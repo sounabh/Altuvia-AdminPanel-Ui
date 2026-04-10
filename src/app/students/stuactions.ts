@@ -80,15 +80,26 @@ export interface StudentDetailedInfo extends StudentBasicInfo {
     lastModified: Date;
     isCompleted: boolean;
     completedAt: Date | null;
+    content: string;
+    isCustomEssay: boolean;
+    customPromptTitle: string | null;
+    customPromptText: string | null;
     program: {
       programName: string;
     };
+    essayPrompt: {
+      promptTitle: string;
+      promptText: string;
+      wordLimit: number;
+    } | null;
     versions: Array<{
       id: string;
       label: string;
+      content: string;
       wordCount: number;
       timestamp: Date;
       isAutoSave: boolean;
+      changesSinceLastVersion: string | null;
     }>;
   }>;
 
@@ -329,15 +340,37 @@ export async function getStudentById(id: string) {
             wordLimit: true,
             lastModified: true,
             isCompleted: true,
+            completedAt: true,
+            content: true,
+            customPromptTitle: true,
+            customPromptText: true,
+            isCustomEssay: true,
             program: {
               select: {
                 programName: true,
               },
             },
+            essayPrompt: {
+              select: {
+                promptTitle: true,
+                promptText: true,
+                wordLimit: true,
+              },
+            },
+            versions: {
+              select: {
+                id: true,
+                label: true,
+                content: true,
+                wordCount: true,
+                timestamp: true,
+                isAutoSave: true,
+                changesSinceLastVersion: true,
+              },
+              orderBy: { timestamp: 'desc' },
+            },
           },
-          orderBy: {
-            lastModified: 'desc',
-          },
+          orderBy: { lastModified: 'desc' },
         },
         CV: {
           select: {

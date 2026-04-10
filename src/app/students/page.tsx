@@ -1116,38 +1116,227 @@ const SavedUniversitiesSection = memo(function SavedUniversitiesSection({
   );
 });
 
+// ==================== ESSAYS SECTION ====================
 const EssaysSection = memo(function EssaysSection({ essays }: { essays: StudentDetailedInfo['essays'] }) {
+  const [expandedEssayId, setExpandedEssayId] = useState<string | null>(null);
+  const [activeVersionId, setActiveVersionId] = useState<Record<string, string>>({});
+
+  const toggleEssay = (id: string) => {
+    setExpandedEssayId(prev => (prev === id ? null : id));
+  };
+
+  const setVersion = (essayId: string, versionId: string) => {
+    setActiveVersionId(prev => ({ ...prev, [essayId]: versionId }));
+  };
+
+  const getDisplayContent = (essay: StudentDetailedInfo['essays'][0]) => {
+    const selectedVersionId = activeVersionId[essay.id];
+    if (selectedVersionId) {
+      const v = essay.versions?.find(v => v.id === selectedVersionId);
+      return v ? { content: v.content, wordCount: v.wordCount } : { content: essay.content, wordCount: essay.wordCount };
+    }
+    return { content: essay.content, wordCount: essay.wordCount };
+  };
+
+  const getPromptTitle = (essay: StudentDetailedInfo['essays'][0]) => {
+    if (essay.isCustomEssay && essay.customPromptTitle) return essay.customPromptTitle;
+    if (essay.essayPrompt?.promptTitle) return essay.essayPrompt.promptTitle;
+    return essay.title;
+  };
+
+  const getPromptText = (essay: StudentDetailedInfo['essays'][0]) => {
+    if (essay.isCustomEssay && essay.customPromptText) return essay.customPromptText;
+    if (essay.essayPrompt?.promptText) return essay.essayPrompt.promptText;
+    return null;
+  };
+
+  const getWordLimit = (essay: StudentDetailedInfo['essays'][0]) => {
+    if (essay.isCustomEssay && essay.customWordLimit) return essay.customWordLimit;
+    if (essay.essayPrompt?.wordLimit) return essay.essayPrompt.wordLimit;
+    return essay.wordLimit;
+  };
+
   return (
     <div className="bg-gradient-to-br from-yellow-50 to-white p-6 rounded-xl border border-yellow-100">
       <h3 className="text-lg font-semibold text-gray-800 mb-4 border-b-2 border-yellow-200 pb-2">
         Essays ({essays.length})
       </h3>
-      <div className="space-y-3 max-h-96 overflow-y-auto">
-        {essays.map(essay => (
-          <div key={essay.id} className="p-4 bg-white rounded-lg border border-yellow-200 hover:shadow-md transition">
-            <div className="flex justify-between items-start mb-2">
-              <div className="flex-1">
-                <h4 className="font-semibold text-sm text-gray-800">{essay.title}</h4>
-                <p className="text-xs text-gray-600 mt-1">{essay.program.programName}</p>
-              </div>
-              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                essay.isCompleted ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-              }`}>
-                {essay.status}
-              </span>
+      <div className="space-y-4">
+        {essays.map(essay => {
+          const isExpanded = expandedEssayId === essay.id;
+          const { content, wordCount } = getDisplayContent(essay);
+          const promptTitle = getPromptTitle(essay);
+          const promptText = getPromptText(essay);
+          const wordLimit = getWordLimit(essay);
+          const selectedVersionId = activeVersionId[essay.id];
+          const manualVersions = essay.versions?.filter(v => !v.isAutoSave) ?? [];
+          const autoSaveVersions = essay.versions?.filter(v => v.isAutoSave) ?? [];
+
+          return (
+            <div key={essay.id} className="bg-white rounded-xl border border-yellow-200 overflow-hidden shadow-sm hover:shadow-md transition">
+              {/* Essay Header — always visible */}
+              <button
+                type="button"
+                onClick={() => toggleEssay(essay.id)}
+                className="w-full text-left px-5 py-4 flex items-start justify-between gap-4 hover:bg-yellow-50 transition"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                      essay.isCompleted ? 'bg-green-100 text-green-800' :
+                      essay.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-800' :
+                      'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {essay.status}
+                    </span>
+                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                      essay.priority === 'high' ? 'bg-red-100 text-red-800' :
+                      essay.priority === 'medium' ? 'bg-orange-100 text-orange-800' :
+                      'bg-gray-100 text-gray-700'
+                    }`}>
+                      {essay.priority} priority
+                    </span>
+                    {essay.isCustomEssay && (
+                      <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-800">
+                        Custom
+                      </span>
+                    )}
+                    {essay.versions && essay.versions.length > 0 && (
+                      <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-800">
+                        {essay.versions.length} version{essay.versions.length !== 1 ? 's' : ''}
+                      </span>
+                    )}
+                  </div>
+                  <p className="font-semibold text-gray-900 text-sm truncate">{promptTitle}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{essay.program?.programName}</p>
+                </div>
+                <div className="flex flex-col items-end gap-1 shrink-0">
+                  <span className="text-sm font-bold text-gray-700">
+                    {essay.wordCount} / {wordLimit} <span className="font-normal text-gray-400">words</span>
+                  </span>
+                  <div className="w-28 bg-gray-200 rounded-full h-1.5">
+                    <div
+                      className="bg-gradient-to-r from-yellow-400 to-yellow-500 h-1.5 rounded-full"
+                      style={{ width: `${Math.min(essay.completionPercentage, 100)}%` }}
+                    />
+                  </div>
+                  <span className="text-xs text-gray-400">{Math.round(essay.completionPercentage)}% complete</span>
+                </div>
+              </button>
+
+              {/* Expanded Content */}
+              {isExpanded && (
+                <div className="border-t border-yellow-100 px-5 pb-5 pt-4 space-y-4">
+
+                  {/* Prompt */}
+                  {promptText && (
+                    <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
+                      <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-1">Essay Prompt</p>
+                      <p className="text-sm text-blue-900 leading-relaxed">{promptText}</p>
+                      <p className="text-xs text-blue-500 mt-2">Word limit: {wordLimit}</p>
+                    </div>
+                  )}
+
+                  {/* Version Selector */}
+                  {essay.versions && essay.versions.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                        Versions ({essay.versions.length})
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {/* Current (live) */}
+                        <button
+                          type="button"
+                          onClick={() => setVersion(essay.id, '')}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition ${
+                            !selectedVersionId
+                              ? 'bg-gray-800 text-white border-gray-800'
+                              : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                          }`}
+                        >
+                          Current
+                          <span className="ml-1 text-gray-400 font-normal">{essay.wordCount}w</span>
+                        </button>
+                        {/* Manual saves first */}
+                        {manualVersions.map(v => (
+                          <button
+                            key={v.id}
+                            type="button"
+                            onClick={() => setVersion(essay.id, v.id)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition ${
+                              selectedVersionId === v.id
+                                ? 'bg-indigo-600 text-white border-indigo-600'
+                                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                            }`}
+                          >
+                            {v.label}
+                            <span className="ml-1 opacity-60 font-normal">{v.wordCount}w</span>
+                          </button>
+                        ))}
+                        {/* Autosaves collapsed into a dropdown if any */}
+                        {autoSaveVersions.length > 0 && (
+                          <select
+                            value={autoSaveVersions.some(v => v.id === selectedVersionId) ? selectedVersionId : ''}
+                            onChange={e => e.target.value && setVersion(essay.id, e.target.value)}
+                            className="px-3 py-1.5 rounded-lg text-xs border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 focus:ring-1 focus:ring-indigo-400"
+                          >
+                            <option value="">Autosaves ({autoSaveVersions.length})</option>
+                            {autoSaveVersions.map(v => (
+                              <option key={v.id} value={v.id}>
+                                {new Date(v.timestamp).toLocaleString()} — {v.wordCount}w
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+                      {/* Version metadata */}
+                      {selectedVersionId && (() => {
+                        const v = essay.versions?.find(v => v.id === selectedVersionId);
+                        if (!v) return null;
+                        return (
+                          <p className="text-xs text-gray-400 mt-2">
+                            Saved {new Date(v.timestamp).toLocaleString()}
+                            {v.changesSinceLastVersion && ` · ${v.changesSinceLastVersion}`}
+                          </p>
+                        );
+                      })()}
+                    </div>
+                  )}
+
+                  {/* Essay Content */}
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                      {selectedVersionId
+                        ? `Content — ${essay.versions?.find(v => v.id === selectedVersionId)?.label ?? 'Version'}`
+                        : 'Current Content'}
+                      <span className="ml-2 font-normal normal-case text-gray-400">{wordCount} words</span>
+                    </p>
+                    {content ? (
+                      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 max-h-80 overflow-y-auto">
+                        <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">{content}</p>
+                      </div>
+                    ) : (
+                      <div className="bg-gray-50 border border-dashed border-gray-300 rounded-lg p-6 text-center">
+                        <p className="text-sm text-gray-400 italic">No content written yet</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Completion info */}
+                  {essay.isCompleted && essay.completedAt && (
+                    <p className="text-xs text-green-600 flex items-center gap-1">
+                      <CheckCircle className="w-3 h-3" />
+                      Completed on {new Date(essay.completedAt).toLocaleDateString()}
+                    </p>
+                  )}
+                  <p className="text-xs text-gray-400">
+                    Last modified: {new Date(essay.lastModified).toLocaleString()}
+                  </p>
+                </div>
+              )}
             </div>
-            <div className="flex items-center justify-between text-xs text-gray-600 mt-3">
-              <span>{essay.wordCount} / {essay.wordLimit} words</span>
-              <span className="font-semibold">{essay.completionPercentage}%</span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-              <div 
-                className="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full transition-all"
-                style={{ width: `${essay.completionPercentage}%` }}
-              />
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
